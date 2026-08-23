@@ -1,0 +1,56 @@
+{
+  "api_keys": {
+    "gemini": "",
+    "groq": "",
+    "openai": "",
+    "deepgram": ""
+  },
+  "preferred_llm": "gemini",
+  "ai_settings": {
+    "gemini_model": "gemini-3.7-flash",
+    "groq_model": "llama-3.3-70b-versatile",
+    "openai_model": "gpt-4o",
+    "custom_model": "",
+    "temperature": 0.2,
+    "max_tokens": 1200,
+    "custom_prompt_prefix": ""
+  },
+  "role_preset": "Technical Architecture Review & System Design",
+  "user_profile": {
+    "name": "Speaker",
+    "years_of_experience": "QA Engineer",
+    "primary_skills": "Testing, Coding, Latest AI news, Debugging",
+    "summary": "Technical presenter and system architect leading discussions on scalable infrastructure and engineering best practices.",
+    "resume_text": "",
+    "job_description_text": ""
+  },
+  "ui_settings": {
+    "theme": "calm_buttercup",
+    "opacity": 0.96,
+    "font_size": 13,
+    "border_radius": 12,
+    "width": 355,
+    "height": 620,
+    "stealth_affinity": true,
+    "click_through_default": false,
+    "vu_mode": "dots"
+  },
+  "audio_settings": {
+    "sensitivity_threshold": 0.02,
+    "silence_timeout_sec": 1.5
+  },
+  "hotkeys": {
+    "smart_next": "Ctrl+Space",
+    "stage_1": "Ctrl+1",
+    "stage_2": "Ctrl+2",
+    "stage_3": "Ctrl+3",
+    "vision_snip": "Ctrl+Alt+S",
+    "hud_toggle": "Alt+H",
+    "ghost_toggle": "Alt+T",
+    "clear_content": "Ctrl+Alt+C"
+  },
+  "server_settings": {
+    "host": "0.0.0.0",
+    "port": 8000
+  }
+}

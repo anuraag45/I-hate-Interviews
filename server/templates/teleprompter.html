@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MeetingCopilot // Modern Presenter Teleprompter</title>
+    <style>
+        :root {
+            --bg-color: #12151C;
+            --card-bg: #181C26;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --accent-yellow: #F6D860;
+            --accent-green: #38A169;
+            --accent-purple: #9F7AEA;
+            --text-main: #F0F2F7;
+            --text-muted: #8E95A5;
+            --code-bg: #1E2332;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 8px;
+            overflow-x: hidden;
+        }
+
+        /* Narrow Pillar Saccade-Resistant Container */
+        .teleprompter-container {
+            width: 100%;
+            max-width: 360px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-bottom: 30px;
+        }
+
+        /* Status Header Bar */
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            font-size: 11px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        /* 3-Step Live Stage Stepper */
+        .stage-stepper {
+            display: flex;
+            gap: 4px;
+            background: #151924;
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+        }
+
+        .step-pill {
+            flex: 1;
+            padding: 6px 4px;
+            border-radius: 6px;
+            font-size: 10.5px;
+            font-weight: 700;
+            text-align: center;
+            background: #1E2332;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .step-pill.active {
+            background: var(--accent-yellow);
+            color: #12151C;
+        }
+
+        .step-pill.completed {
+            background: #276749;
+            color: #FFFFFF;
+        }
+
+        .transcript-pill {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-left: 3px solid var(--accent-yellow);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 12px;
+            line-height: 1.35;
+            color: #E2E8F0;
+            min-height: 40px;
+            max-height: 70px;
+            overflow-y: auto;
+            word-break: break-word;
+        }
+
+        /* Modern Elevated Cards */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .card-s1 { border-left: 3px solid var(--accent-yellow); }
+        .card-s2 { border-left: 3px solid var(--accent-green); }
+        .card-s3 { border-left: 3px solid var(--accent-purple); }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11.5px;
+            font-weight: 700;
+        }
+
+        .card-content {
+            font-size: 12.5px;
+            line-height: 1.45;
+            color: var(--text-main);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-family: Consolas, "JetBrains Mono", monospace;
+            font-size: 11.5px;
+            line-height: 1.4;
+            overflow-x: auto;
+            color: #E2E8F0;
+        }
+
+        /* Footer Controls */
+        .quick-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 10px;
+            background: #1E2332;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #F0F2F7;
+            font-size: 11.5px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .action-btn:active { background: #2A3245; }
+
+        .btn-copy-small {
+            background: #222838;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #E2E8F0;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .btn-copy-small:active { background: var(--accent-yellow); color: #12151C; }
+    </style>
+</head>
+<body>
+
+<div class="teleprompter-container">
+    <!-- Status Header -->
+    <div class="status-header">
+        <div class="status-badge">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Live Sync Active</span>
+        </div>
+        <div style="display:flex; gap:4px;">
+            <button class="btn-copy-small" onclick="adjustFontSize(-1)">A-</button>
+            <button class="btn-copy-small" onclick="adjustFontSize(1)">A+</button>
+        </div>
+    </div>
+
+    <!-- 3-Step Live Stage Stepper -->
+    <div class="stage-stepper">
+        <div class="step-pill active" id="stepPill1" onclick="filterStage('s1')">1. Scope</div>
+        <div class="step-pill" id="stepPill2" onclick="filterStage('s2')">2. Arch</div>
+        <div class="step-pill" id="stepPill3" onclick="filterStage('s3')">3. Code</div>
+        <div class="step-pill" id="stepPillAll" onclick="filterStage('all')">All</div>
+    </div>
+
+    <!-- Live Transcription Pill -->
+    <div class="transcript-pill" id="liveTranscript">
+        >> Listening for meeting audio...
+    </div>
+
+    <!-- Stage 1 Card -->
+    <div class="card card-s1" id="cardS1">
+        <div class="card-header" style="color: var(--accent-yellow);">
+            <span>🟡 1. Scope & Key Questions</span>
+            <span style="font-size: 10px; color: var(--text-muted);">DISCUSS</span>
+        </div>
+        <div class="card-content" id="contentS1">
+• Clarify scale expectations ($N \le 10^5$?)
+• Confirm security/compliance boundaries
+• Address edge cases and failure modes
+        </div>
+    </div>
+
+    <!-- Stage 2 Card -->
+    <div class="card card-s2" id="cardS2">
+        <div class="card-header" style="color: var(--accent-green);">
+            <span>🟢 2. Architecture & Concepts</span>
+            <span style="font-size: 10px; color: var(--text-muted);">DESIGN</span>
+        </div>
+        <div class="card-content" id="contentS2">
+• Baseline: Monolithic sync flow
+• Optimal: Distributed event stream
+• Trade-off: Latency vs Consistency
+        </div>
+    </div>
+
+    <!-- Stage 3 Card -->
+    <div class="card card-s3" id="cardS3">
+        <div class="card-header" style="color: var(--accent-purple);">
+            <span>🚀 3. Implementation Code</span>
+            <button class="btn-copy-small" onclick="copyCode()">📋 Copy</button>
+        </div>
+        <div class="card-content" id="contentS3">
+<pre><code>def solve(stream):
+    seen = set()
+    for item in stream:
+        if item not in seen:
+            yield item
+            seen.add(item)</code></pre>
+        </div>
+    </div>
+
+    <!-- Footer Controls -->
+    <div class="quick-actions">
+        <button class="action-btn" onclick="clearAll()">Clear</button>
+        <button class="action-btn" onclick="requestNextStage()" style="background: var(--accent-yellow); color: #12151C;">Next Stage (Space)</button>
+    </div>
+</div>
+
+<script>
+    let ws = null;
+    let fontSize = 12.5;
+
+    function getAuthToken() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('token') || '__SERVER_AUTH_TOKEN__';
+    }
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const token = getAuthToken();
+        const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+        
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            document.getElementById('statusDot').style.background = '#38A169';
+            document.getElementById('statusDot').style.boxShadow = '0 0 8px #38A169';
+            document.getElementById('statusText').innerText = 'Live Sync Active';
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'transcript') {
+                    document.getElementById('liveTranscript').innerText = `>> ${data.text || 'Listening...'}`;
+                } else if (data.type === 'token_stream') {
+                    handleTokenStream(data.stage, data.token);
+                } else if (data.type === 'card_complete') {
+                    handleCardComplete(data.stage, data.content);
+                } else if (data.type === 'clear') {
+                    clearAllLocal();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
+        ws.onclose = (event) => {
+            document.getElementById('statusDot').style.background = '#E53E3E';
+            document.getElementById('statusDot').style.boxShadow = '0 0 8px #E53E3E';
+            if (event.code === 1008) {
+                document.getElementById('statusText').innerText = 'Auth Failed';
+            } else {
+                document.getElementById('statusText').innerText = 'Reconnecting...';
+                setTimeout(connectWebSocket, 1500);
+            }
+        };
+    }
+
+    function updateStepper(stage) {
+        ['stepPill1', 'stepPill2', 'stepPill3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.classList.remove('active'); el.classList.remove('completed'); }
+        });
+        if (stage === 1) document.getElementById('stepPill1').classList.add('active');
+        if (stage === 2) {
+            document.getElementById('stepPill1').classList.add('completed');
+            document.getElementById('stepPill2').classList.add('active');
+        }
+        if (stage === 3) {
+            document.getElementById('stepPill1').classList.add('completed');
+            document.getElementById('stepPill2').classList.add('completed');
+            document.getElementById('stepPill3').classList.add('active');
+        }
+    }
+
+    function handleTokenStream(stage, token) {
+        updateStepper(stage);
+        let elId = 'contentS1';
+        if (stage === 2 || stage === 's2') elId = 'contentS2';
+        if (stage === 3 || stage === 's3') elId = 'contentS3';
+        const el = document.getElementById(elId);
+        if (el) el.innerText += token;
+    }
+
+    function handleCardComplete(stage, content) {
+        updateStepper(stage);
+        if (stage === 'all' || stage === 4) {
+            document.getElementById('contentS1').innerText = content;
+        } else if (stage === 1 || stage === 's1') {
+            document.getElementById('contentS1').innerText = content;
+        } else if (stage === 2 || stage === 's2') {
+            document.getElementById('contentS2').innerText = content;
+        } else if (stage === 3 || stage === 's3') {
+            document.getElementById('contentS3').innerHTML = `<pre><code>${escapeHtml(content)}</code></pre>`;
+        }
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function filterStage(stage) {
+        ['stepPill1', 'stepPill2', 'stepPill3', 'stepPillAll'].forEach(id => document.getElementById(id).classList.remove('active'));
+        
+        if (stage === 'all') {
+            document.getElementById('stepPillAll').classList.add('active');
+            document.getElementById('cardS1').style.display = 'flex';
+            document.getElementById('cardS2').style.display = 'flex';
+            document.getElementById('cardS3').style.display = 'flex';
+        } else if (stage === 's1') {
+            document.getElementById('stepPill1').classList.add('active');
+            document.getElementById('cardS1').style.display = 'flex';
+            document.getElementById('cardS2').style.display = 'none';
+            document.getElementById('cardS3').style.display = 'none';
+        } else if (stage === 's2') {
+            document.getElementById('stepPill2').classList.add('active');
+            document.getElementById('cardS1').style.display = 'none';
+            document.getElementById('cardS2').style.display = 'flex';
+            document.getElementById('cardS3').style.display = 'none';
+        } else if (stage === 's3') {
+            document.getElementById('stepPill3').classList.add('active');
+            document.getElementById('cardS1').style.display = 'none';
+            document.getElementById('cardS2').style.display = 'none';
+            document.getElementById('cardS3').style.display = 'flex';
+        }
+    }
+
+    function copyCode() {
+        const codeEl = document.getElementById('contentS3');
+        if (codeEl) {
+            navigator.clipboard.writeText(codeEl.innerText);
+            const btn = document.querySelector('#cardS3 .btn-copy-small');
+            if (btn) {
+                btn.innerText = '✓ Copied!';
+                setTimeout(() => btn.innerText = '📋 Copy', 1200);
+            }
+        }
+    }
+
+    function adjustFontSize(delta) {
+        fontSize = Math.max(10, Math.min(18, fontSize + delta));
+        ['contentS1', 'contentS2', 'contentS3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.fontSize = `${fontSize}px`;
+        });
+    }
+
+    function clearAllLocal() {
+        document.getElementById('liveTranscript').innerText = '>> Listening for meeting audio...';
+        document.getElementById('contentS1').innerText = '';
+        document.getElementById('contentS2').innerText = '';
+        document.getElementById('contentS3').innerText = '';
+        updateStepper(1);
+    }
+
+    function clearAll() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'clear' }));
+        }
+        clearAllLocal();
+    }
+
+    function requestNextStage() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'next_stage' }));
+        }
+    }
+
+    connectWebSocket();
+</script>
+</body>
+</html>
