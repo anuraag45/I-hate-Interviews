@@ -1,5 +1,9 @@
 # 😤 I Hate Interviews — Real-Time Live Copilot For Crushing Tech Calls
 
+> [!WARNING]
+> ### 🚧 ACTIVE DEVELOPMENT & EXPERIMENTAL PREVIEW 🚧
+> **This project is currently under heavy active development.** Features, UI modules, audio drivers, and model routing pipelines are being rapidly shipped and battle-tested. Expect frequent updates, experimental improvements, and new superpowers. Star & watch the repo to stay updated!
+
 > *"Look, let's keep it 100 — technical interviews are cooked. We got you locked in. No cap, straight heat, zero sweat."*
 
 **I Hate Interviews** is the ultimate ultra-low-latency, invisible Windows wingman built so you can breeze through technical interviews, live coding rounds, and system design grillings without breaking a sweat.
