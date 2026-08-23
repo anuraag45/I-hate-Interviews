@@ -50,7 +50,7 @@ class SetupCenter(QMainWindow):
         self.shm_ring = None
         self.wave_phase = 0
 
-        self.setWindowTitle("MeetingCopilot AI — Live Intelligence Suite")
+        self.setWindowTitle("I Hate Interviews — Live AI Copilot")
         self.resize(920, 740)
         self.setMinimumSize(840, 660)
         self._apply_calm_modern_theme()
@@ -297,9 +297,9 @@ class SetupCenter(QMainWindow):
         header_layout.setContentsMargins(4, 2, 4, 2)
 
         title_box = QVBoxLayout()
-        title_lbl = QLabel("🎙️ MEETING COPILOT // CONTROL HUB", self)
+        title_lbl = QLabel("🎙️ I HATE INTERVIEWS // CONTROL HUB", self)
         title_lbl.setStyleSheet("font-size: 14px; font-weight: 800; color: #F6D860; letter-spacing: 0.5px;")
-        sub_lbl = QLabel("Ultra-low-latency real-time presenter assistant with Gemini 3.7 / 3.6 / 2.5 series", self)
+        sub_lbl = QLabel("Ultra-low-latency real-time live AI copilot powered by Gemini 3.7 / 3.6 / 2.5", self)
         sub_lbl.setStyleSheet("font-size: 11px; color: #8E95A5;")
         title_box.addWidget(title_lbl)
         title_box.addWidget(sub_lbl)
@@ -398,9 +398,9 @@ class SetupCenter(QMainWindow):
         hc_layout = QVBoxLayout(hero_card)
         hc_layout.setSpacing(10)
 
-        h_title = QLabel("Ready for your presentation or live interview?")
+        h_title = QLabel("Ready to crush this technical interview?")
         h_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #FFFFFF;")
-        h_desc = QLabel("The floating HUD stays on top of all windows, is 100% hidden from screen shares (Zoom/Meet/Teams), and streams stage-gated answers (Scope → Architecture → Code) in real time.")
+        h_desc = QLabel("The floating HUD stays locked on top of all windows, is 100% invisible to screen shares (Zoom/Meet/Teams), and drops direct answers + prod-grade code in real time.")
         h_desc.setWordWrap(True)
         h_desc.setStyleSheet("font-size: 12px; color: #8E95A5; line-height: 1.4;")
         hc_layout.addWidget(h_title)

@@ -10,7 +10,8 @@ from fastapi.responses import HTMLResponse
 import uvicorn
 import qrcode
 
-app = FastAPI(title="MeetingCopilot Teleprompter Server")
+app = FastAPI(title="I Hate Interviews Teleprompter Server")
+
 
 connected_clients: Set[WebSocket] = set()
 server_loop: Optional[asyncio.AbstractEventLoop] = None

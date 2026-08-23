@@ -194,8 +194,9 @@ def solve():
 
 def run_all_tests():
     print("=" * 65)
-    print("     MEETINGCOPILOT AI - COMPREHENSIVE VERIFICATION SUITE        ")
+    print("     I HATE INTERVIEWS - COMPREHENSIVE VERIFICATION SUITE        ")
     print("=" * 65)
+
     test_imports()
     test_llm_model_configurations()
     test_dpapi_crypto()

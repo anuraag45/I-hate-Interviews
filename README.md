@@ -1,83 +1,80 @@
-# 🎙️ MeetingCopilot AI - Real-Time Presentation & Meeting Assistant
+# 😤 I Hate Interviews — Real-Time Live Copilot For Crushing Tech Calls
 
-**MeetingCopilot AI** is an ultra-low-latency, multi-process Windows assistant designed for technical presentations, system design reviews, webinars, live coding walkthroughs, and client discussions.
+> *"Look, let's keep it 100 — technical interviews are cooked. We got you locked in. No cap, straight heat, zero sweat."*
 
----
-
-## ⚡ Core Architecture & Guarantees
-
-1. **Presenter-Display Window Exclusion (`WDA_EXCLUDEFROMCAPTURE`)**:
-   - Uses Windows Win32 API `SetWindowDisplayAffinity(hwnd, 0x00000011)` (`WDA_EXCLUDEFROMCAPTURE`).
-   - Speaker notes and HUD controls are rendered locally on your physical screen but remain **completely invisible** to audience screen shares on Zoom, Microsoft Teams, Google Meet, Discord, and OBS.
-2. **Bank-Grade Credential Protection (Windows DPAPI)**:
-   - All stored API keys (Gemini, Groq, Deepgram, OpenAI) are encrypted at rest using Windows Data Protection API (`CryptProtectData`), cryptographically tied strictly to your current Windows User SID.
-3. **Streamlined Direct QA & Production Code Engine**:
-   - Fast, high-accuracy answers designed for a 2-second glance (zero conversational fluff, zero unsolicited architecture dumps).
-   - Clean, production-grade code snippets with proper typing, boundary checks, and $O(N)$ time/space complexity analysis.
-4. **Collapsible Section Card Layout**:
-   - **Section 1: 💬 Direct Answer & Key Points**: Direct concise takeaways.
-   - **Section 2: 💻 Production Code Panel**: Collapsible accordion with `[▲ / ▼ Code]` toggle and 1-click focus-safe copy.
-5. **Dual Audio Stream Capture & Universal Speech-To-Text**:
-   - Captures **both** your Microphone (headset/mic) and System Audio (WASAPI loopback from Zoom/Teams/Meet).
-   - Dual-mode STT: Ultra-fast Deepgram Nova-2 WebSocket or built-in free Google Speech Recognition with Voice Activity Detection (VAD).
-   - Voice-to-Solution Auto-Trigger: Speaking a question automatically streams the solution without touching a key.
-6. **Ephemeral Token-Authenticated Mobile Companion**:
-   - Built-in local WebSocket server with token authentication (`/ws?token=...`).
-   - Scan the on-screen QR code from your phone and place it directly below your webcam for 100% natural eye contact with zero horizontal eye saccades.
-7. **Hardware-Accelerated Slide / Code Snip (`Ctrl+Alt+S`)**:
-   - Silent capture of the active window using `PrintWindow(..., 0x2)` + Adaptive Contrast boost and WebP compression ($<250\text{ KB}$) for sub-150ms Gemini 2.5/3.7 Vision analysis.
-8. **Zero Meeting App Shortcut Conflicts**:
-   - All global shortcuts use `Ctrl + Alt + ...` to prevent collisions with Zoom, Teams, or Google Meet defaults.
+**I Hate Interviews** is the ultimate ultra-low-latency, invisible Windows wingman built so you can breeze through technical interviews, live coding rounds, and system design grillings without breaking a sweat.
 
 ---
 
-## 🚀 Quick Start
+## 🔥 Why This Tool Hits Different
+
+1. **Ghost Stealth Mode (Invisible on Screen Shares)**:
+   - Uses low-level Windows API `SetWindowDisplayAffinity(hwnd, 0x00000011)` (`WDA_EXCLUDEFROMCAPTURE`).
+   - The HUD floats on your physical screen, but Zoom, Microsoft Teams, Google Meet, Discord, and OBS see **absolutely nothing**. Pure stealth.
+2. **Straight-to-the-Point Answers (Zero Fluff, 100% Signal)**:
+   - No lengthy bedtime stories or unsolicited essays. 
+   - Instant, 2-second glanceable bullet points with bold key takeaways and optimal complexities ($O(N)$).
+3. **Prod-Grade Code on Lock**:
+   - Spits clean, typed, idiomatic production snippets with boundary checks.
+   - 1-click focus-safe copy with an expandable/collapsible code drawer.
+4. **Dual Ear Live Listening (Mic + Interviewer Audio)**:
+   - Listens to **both** your microphone and the interviewer's voice over Zoom/Teams/Meet in real time.
+   - Free built-in speech recognition with automatic Voice Activity Detection (VAD) — when they ask a question, the solution drops automatically without you touching a single key.
+5. **Locked-Down Bank-Grade Security (Windows DPAPI)**:
+   - Your API keys (Gemini 3.7/3.6, Groq, Deepgram, OpenAI) are encrypted at rest using Windows DPAPI, cryptographically tied strictly to your user profile.
+6. **Mobile Teleprompter Companion**:
+   - Scan the QR code with your phone, prop it right below your webcam, and maintain 100% natural eye contact with zero eye wandering.
+7. **Zero Shortcut Clashes**:
+   - All global triggers are mapped to `Ctrl + Alt + ...` so you never accidentally mute yourself or drop video on Zoom/Teams/Meet.
+
+---
+
+## ⚡ Quick Start (Get In The Game)
 
 ### 1. Install Dependencies
 ```powershell
 pip install -r requirements.txt
 ```
 
-### 2. Launch the Application
+### 2. Run the App
 ```powershell
 python run.py
 ```
 
-### 3. Configure Your Profile & API Keys in Setup Center
-- **API Keys**: Enter your **Google Gemini API Key** (Gemini 3.7 / 3.6 / 2.5 Flash) and/or **Deepgram Nova-2** key.
-- **Preset**: Select your presentation preset or paste custom talking points.
-- Click **🚀 Launch Live Presenter HUD**.
+### 3. Set Your Keys & Roll
+- Drop in your **Google Gemini API Key** (Gemini 3.7 / 3.6 / 2.5 Flash) or **Groq / Deepgram / OpenAI** key in the Control Hub.
+- Hit **🚀 Launch Presenter HUD** and you're good to go.
 
 ---
 
-## ⌨️ Global Presenter Hotkeys
+## ⌨️ Controller Bindings (Global Hotkeys)
 
-| Hotkey | Action | Description |
+| Hotkey | Action | What It Does |
 | :--- | :--- | :--- |
-| **`Ctrl + Alt + Q`** | **Direct QA Solve** | Solves currently transcribed or typed technical question. |
-| **`Ctrl + Alt + S`** | **Slide Snip & Solve** | Instantly captures active presentation window and streams Gemini Vision analysis. |
-| **`Ctrl + Alt + H`** | **Visibility Toggle** | Instantly shows/hides the floating desktop HUD. |
-| **`Ctrl + Alt + T`** | **Click-Through Toggle** | Toggles click-through mode (clicks pass directly through to slide deck). |
-| **`Ctrl + Alt + C`** | **Clear Overlay** | Clears active transcript buffer and Q&A content. |
+| **`Ctrl + Alt + Q`** | **Instant QA Solve** | Immediately generates the direct answer + code for the active topic. |
+| **`Ctrl + Alt + S`** | **Screen Snip & Solve** | Silently snips the active problem/slide and drops the solution. |
+| **`Ctrl + Alt + H`** | **Ghost HUD Toggle** | Instantly pops the HUD in or out of view. |
+| **`Ctrl + Alt + T`** | **Click-Through Toggle** | Clicks pass right through the HUD to whatever window is behind it. |
+| **`Ctrl + Alt + C`** | **Wipe Clean** | Clears the transcript and cards for the next question. |
 
 ---
 
-## 📱 Mobile Pairing
+## 📱 Phone Teleprompter Setup
 
-1. Ensure your phone is connected to the same Wi-Fi network as your laptop.
-2. In the **Mobile Teleprompter** tab of the Setup Center, scan the displayed QR code.
-3. Place your phone propped up directly below your laptop screen/webcam for natural eye contact.
-4. *Isolated Wi-Fi Fallback*: Connect via USB and run:
+1. Make sure your phone is on the same Wi-Fi.
+2. In the **Mobile Teleprompter** tab, scan the QR code.
+3. Prop your phone up under your camera and read your notes with natural eye contact.
+4. *Strict Corporate Wi-Fi Fallback*: Plug in USB, run:
    ```bash
    adb reverse tcp:8000 tcp:8000
    ```
-   then open `http://localhost:8000` on your mobile browser.
+   and open `http://localhost:8000` on your mobile browser.
 
 ---
 
-## 🧪 Verification & Testing
+## 🧪 Battle-Tested Verification
 
-To run the full automated verification test suite:
+Run the full automated test suite to ensure all engines are running 100%:
 ```powershell
 python test_suite.py
 ```
