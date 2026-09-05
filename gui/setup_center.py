@@ -481,6 +481,13 @@ class SetupCenter(QMainWindow):
         self.txt_gemini.setFixedHeight(38)
         cg_layout.addWidget(self.txt_gemini)
 
+        self.lbl_gemini_hint = QLabel("")
+        self.lbl_gemini_hint.setStyleSheet("font-size: 11px; color: #8E95A5; margin-top: -4px;")
+        cg_layout.addWidget(self.lbl_gemini_hint)
+        self.txt_gemini.textChanged.connect(self._validate_gemini_key_live)
+        self._validate_gemini_key_live(self.txt_gemini.text())
+
+
         lbl_dg = QLabel("Deepgram Nova-2 API Key (Optional — Free Speech Recognition with VAD is built-in):")
         lbl_dg.setStyleSheet("font-weight: 600; color: #8E95A5; font-size: 11px;")
         cg_layout.addWidget(lbl_dg)
@@ -599,7 +606,20 @@ class SetupCenter(QMainWindow):
         layout.addWidget(diag_group)
         layout.addStretch()
 
+    def _validate_gemini_key_live(self, text: str):
+        t = text.strip()
+        if not t:
+            self.lbl_gemini_hint.setText("ℹ️ Free offline knowledge engine will answer queries until Gemini API key is configured.")
+            self.lbl_gemini_hint.setStyleSheet("font-size: 11px; color: #8E95A5; margin-top: -4px;")
+        elif not t.startswith("AIza"):
+            self.lbl_gemini_hint.setText(f"⚠️ Warning: Key starts with '{t[:6]}...'. Google AI Studio keys must start with 'AIzaSy'.")
+            self.lbl_gemini_hint.setStyleSheet("font-size: 11px; color: #ECC94B; font-weight: 700; margin-top: -4px;")
+        else:
+            self.lbl_gemini_hint.setText("✅ Valid Google Gemini key format (AIzaSy...)")
+            self.lbl_gemini_hint.setStyleSheet("font-size: 11px; color: #38A169; font-weight: 700; margin-top: -4px;")
+
     def _run_live_diagnostics(self):
+
         self.lbl_diag_status.setText("Probing streaming latency...")
         self.btn_benchmark.setEnabled(False)
 

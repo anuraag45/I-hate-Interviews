@@ -61,10 +61,11 @@ def load_config() -> dict:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
                 keys = cfg.get("api_keys", {})
-                for k in ["gemini", "groq", "openai", "deepgram"]:
+                for k in ["gemini", "deepgram"]:
                     if k in keys:
                         keys[k] = dpapi_decrypt_string(keys[k])
                 cfg["api_keys"] = keys
+
                 return cfg
         except Exception as e:
             print(f"[MeetingCopilot] Error loading config: {e}")

@@ -38,7 +38,7 @@ class LLMOrchestrator:
         return self.ai_settings.get("gemini_model", "gemini-3.7-flash")
 
     async def benchmark_provider_ttft(self, provider: str, timeout: float = 3.5) -> Tuple[bool, float, str]:
-        api_key = self.api_keys.get(provider.lower(), "")
+        api_key = self.api_keys.get(provider.lower(), "").strip()
         if not api_key:
             return False, 0.0, "Key Not Configured"
 
@@ -47,6 +47,9 @@ class LLMOrchestrator:
 
         try:
             if provider.lower() == "gemini":
+                if not api_key.startswith("AIza"):
+                    return False, 0.0, f"Invalid key prefix ('{api_key[:6]}...'). Google AI Studio keys must start with 'AIzaSy'."
+
                 async def probe():
                     nonlocal first_token_time
                     def on_tok(t):
@@ -65,7 +68,7 @@ class LLMOrchestrator:
                     if resp.status_code in (200, 201):
                         first_token_time = time.time()
                     else:
-                        return False, 0.0, f"HTTP {resp.status_code}: Invalid Key"
+                        return False, 0.0, f"HTTP {resp.status_code}: Invalid Deepgram Key"
 
             if first_token_time is not None:
                 ttft_ms = (first_token_time - t0) * 1000.0
@@ -122,10 +125,25 @@ class LLMOrchestrator:
         user_topic: str = "",
         on_token: Optional[Callable[[str], None]] = None
     ) -> str:
-        gemini_key = self.api_keys.get("gemini", "")
+        gemini_key = self.api_keys.get("gemini", "").strip()
 
-        # Google Gemini (Latest 3.8 / 3.7 / 3.6 / 2.5)
+        # Check key format
         if gemini_key:
+            if not gemini_key.startswith("AIza"):
+                err_text = (
+                    f"• **Invalid Gemini API Key**: The configured key starts with `{gemini_key[:8]}...` instead of `AIzaSy...`.\n"
+                    f"• **Fix**: Google AI Studio keys always start with `AIzaSy`. Please get a free API key at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into the Control Hub.\n\n"
+                    f"```python\n"
+                    f"# Required key format: AIzaSy...\n"
+                    f"# Currently saved:    {gemini_key[:8]}... (Invalid)\n"
+                    f"```"
+                )
+                if on_token:
+                    for word in err_text.split(" "):
+                        on_token(word + " ")
+                        await asyncio.sleep(0.01)
+                return err_text
+
             cb = self.rate_mgr.get_circuit_breaker("gemini")
             rl = self.rate_mgr.get_rate_limiter("gemini")
             if await cb.can_execute() and await rl.acquire():
@@ -136,8 +154,22 @@ class LLMOrchestrator:
                         self.rate_mgr.record_token_usage(len(prompt) // 4, len(res) // 4)
                         return res
                 except Exception as e:
-                    print(f"[LLM] Gemini stream error: {e}")
+                    err_str = str(e)
+                    print(f"[LLM] Gemini stream error: {err_str}")
                     await cb.record_failure()
+                    if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+                        err_text = (
+                            f"• **Gemini Key Rejected by Google**: Google reported your API key is invalid.\n"
+                            f"• **Fix**: Please check [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) to verify your API key and update it in the Control Hub.\n\n"
+                            f"```python\n"
+                            f"# Error from Google: {err_str[:120]}\n"
+                            f"```"
+                        )
+                        if on_token:
+                            for word in err_text.split(" "):
+                                on_token(word + " ")
+                                await asyncio.sleep(0.01)
+                        return err_text
 
         # Smart Topic-Aware Offline Intelligence Engine
         return await self._generate_smart_offline_response(user_topic, on_token)
@@ -145,12 +177,117 @@ class LLMOrchestrator:
     async def _generate_smart_offline_response(self, topic: str, on_token: Optional[Callable[[str], None]]) -> str:
         """
         Generates realistic, accurate, production-grade technical answers
-        when offline or testing.
+        when offline, testing, or before API keys are configured.
         """
         t_clean = (topic or "Technical Problem Solving").strip()
         t_lower = t_clean.lower()
 
-        if "two sum" in t_lower or "2 sum" in t_lower or "complement" in t_lower:
+        if "prototype" in t_lower:
+            text = """• **Core Answer**: In JavaScript, a prototype is an internal delegation object (`[[Prototype]]` / `__proto__`) that provides property and method inheritance across instances.
+• **Key Mechanism**: Prototypal Chain lookup — when accessing `obj.prop`, the runtime checks `obj`, then walks up `obj.__proto__` until found or reaching `null`.
+• **Complexity**: Property lookup: Average $O(1)$, worst-case $O(D)$ where $D$ is prototype chain depth.
+
+```javascript
+// Production JavaScript: Prototypal Inheritance & Chain Delegation
+function User(name, role) {
+    this.name = name;
+    this.role = role;
+}
+
+// Attach method to prototype (shared across all instances, O(1) memory)
+User.prototype.getPermissions = function() {
+    return this.role === 'admin' ? ['read', 'write', 'delete'] : ['read'];
+};
+
+// Modern ES6 Class Equivalent (Syntactic sugar over Prototype chain):
+class AdminUser extends User {
+    constructor(name) {
+        super(name, 'admin');
+    }
+    deleteUser(userId) {
+        return `User ${userId} deleted by ${this.name}`;
+    }
+}
+
+const admin = new AdminUser("Alice");
+console.log(admin.getPermissions()); // Delegated up chain -> ['read', 'write', 'delete']
+```"""
+
+        elif "gil" in t_lower or "global interpreter lock" in t_lower:
+            text = """• **Core Answer**: The Python Global Interpreter Lock (GIL) is a mutex that allows only one native thread to execute Python bytecode at a time in CPython.
+• **Key Mechanism**: Protects CPython's reference-counting memory management from race conditions. CPU-bound tasks do not achieve parallelism with `threading`; use `multiprocessing` or native C extensions instead.
+• **Complexity**: Thread contention overhead on multi-core CPUs for CPU-bound tasks. I/O-bound tasks release GIL during system calls.
+
+```python
+import multiprocessing as mp
+from typing import List
+
+def cpu_heavy_worker(chunk: List[int]) -> int:
+    \"\"\"CPU-bound work bypasses GIL by running in isolated OS processes.\"\"\"
+    return sum(x * x for x in chunk)
+
+def parallel_execution(data: List[int]) -> int:
+    chunk_size = len(data) // mp.cpu_count() or 1
+    chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+    
+    with mp.Pool(processes=mp.cpu_count()) as pool:
+        results = pool.map(cpu_heavy_worker, chunks)
+    return sum(results)
+```"""
+
+        elif "closure" in t_lower:
+            text = """• **Core Answer**: A closure is a function bundled together with references to its surrounding lexical state (lexical environment), allowing it to access outer variables even after the outer function has returned.
+• **Key Mechanism**: The runtime maintains a heap-allocated closure scope containing captured free variables that survive the outer stack frame termination.
+• **Complexity**: Memory: $O(V)$ where $V$ is number of captured scope variables.
+
+```python
+from typing import Callable
+
+def create_rate_limiter(max_requests: int) -> Callable[[], bool]:
+    \"\"\"Closure capturing count and max_requests in private lexical scope.\"\"\"
+    count = 0  # Captured state
+    
+    def allow_request() -> bool:
+        nonlocal count
+        if count < max_requests:
+            count += 1
+            return True
+        return False
+
+    return allow_request
+
+limiter = create_rate_limiter(5)
+print(limiter()) # True (state preserved inside closure)
+```"""
+
+        elif "solid" in t_lower:
+            text = """• **Core Answer**: SOLID is five object-oriented design principles: Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, and Dependency Inversion.
+• **Key Mechanism**: Promotes loose coupling, high cohesion, testability, and maintainability in production architectures.
+• **Complexity**: Reduces change ripple effects from $O(Modules)$ to $O(1)$ isolated implementations.
+
+```python
+from abc import ABC, abstractmethod
+
+# Dependency Inversion & Interface Segregation: Depend on abstractions
+class NotificationService(ABC):
+    @abstractmethod
+    def send(self, to: str, message: str) -> bool:
+        pass
+
+class EmailNotifier(NotificationService):
+    def send(self, to: str, message: str) -> bool:
+        print(f"Email sent to {to}: {message}")
+        return True
+
+class OrderProcessor:
+    def __init__(self, notifier: NotificationService):
+        self.notifier = notifier # Injected dependency
+
+    def complete_order(self, customer: str):
+        self.notifier.send(customer, "Order Confirmed!")
+```"""
+
+        elif "two sum" in t_lower or "2 sum" in t_lower or "complement" in t_lower:
             text = """• **Core Answer**: Find two numbers in an array that add up to a specific target in linear time using a hash map.
 • **Key Mechanism**: Single linear pass storing each seen number's complement (`target - num`) and its index.
 • **Complexity**: Time: $O(N)$ single pass | Space: $O(N)$ auxiliary hash map
@@ -327,9 +464,9 @@ def check_rate_limit(redis_client: Any, user_id: str, capacity: int = 100, refil
 ```"""
 
         else: # General Technical / Interview Question
-            text = f"""• **Core Answer**: Accurate solution for **{t_clean[:50]}**.
-• **Key Mechanism**: Optimal, modular implementation with input validation and typed interfaces.
-• **Complexity**: Time: $O(N)$ linear scan | Space: $O(1)$ auxiliary memory
+            text = f"""• **Core Answer**: Optimal, robust solution for **{t_clean[:50]}**.
+• **Key Mechanism**: Clean modular pattern with parameter validation and typed interfaces.
+• **Complexity**: Time: $O(N)$ linear pass | Space: $O(1)$ auxiliary memory
 
 ```python
 from typing import Any, Dict, List
@@ -367,7 +504,10 @@ def solve_task(items: List[Any]) -> Dict[str, Any]:
             if res and res.strip():
                 return res
         except Exception as e:
-            print(f"[LLM] Gemini REST stream attempt error: {e}")
+            err_msg = str(e)
+            print(f"[LLM] Gemini REST stream attempt error: {err_msg}")
+            if "API_KEY_INVALID" in err_msg or "API key not valid" in err_msg:
+                raise e
 
         try:
             from google import genai
@@ -392,12 +532,15 @@ def solve_task(items: List[Any]) -> Dict[str, Any]:
             if full_text.strip():
                 return full_text
         except Exception as e:
-            print(f"[LLM] google.genai SDK exception: {e}")
+            err_msg = str(e)
+            print(f"[LLM] google.genai SDK exception: {err_msg}")
+            if "API_KEY_INVALID" in err_msg or "API key not valid" in err_msg:
+                raise e
 
         return ""
 
     async def _call_gemini_vision(self, prompt: str, image_bytes: bytes, on_token: Optional[Callable[[str], None]]) -> str:
-        gemini_key = self.api_keys.get("gemini", "")
+        gemini_key = self.api_keys.get("gemini", "").strip()
         if not gemini_key:
             msg = "• **Observed**: Presentation slide code review.\n• **Fix**: Corrected variable bounds and added boundary check."
             if on_token:
@@ -449,6 +592,16 @@ def solve_task(items: List[Any]) -> Dict[str, Any]:
         transport = httpx.AsyncHTTPTransport(retries=2)
         async with httpx.AsyncClient(timeout=25.0, limits=limits, transport=transport) as client:
             async with client.stream("POST", url, json=payload) as response:
+                if response.status_code == 400:
+                    resp_body = await response.aread()
+                    err_str = resp_body.decode("utf-8", errors="ignore")
+                    if "API key not valid" in err_str or "API_KEY_INVALID" in err_str:
+                        raise ValueError(f"API_KEY_INVALID: API key not valid. Please pass a valid Google Gemini API key from https://aistudio.google.com/apikey.")
+                    raise ValueError(f"HTTP 400: {err_str[:120]}")
+                elif response.status_code != 200:
+                    resp_body = await response.aread()
+                    raise ValueError(f"HTTP {response.status_code}: {resp_body.decode('utf-8', errors='ignore')[:120]}")
+
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
                         data_str = line[6:].strip()
