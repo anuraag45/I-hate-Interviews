@@ -611,12 +611,13 @@ class SetupCenter(QMainWindow):
         if not t:
             self.lbl_gemini_hint.setText("ℹ️ Free offline knowledge engine will answer queries until Gemini API key is configured.")
             self.lbl_gemini_hint.setStyleSheet("font-size: 11px; color: #8E95A5; margin-top: -4px;")
-        elif not t.startswith("AIza"):
-            self.lbl_gemini_hint.setText(f"⚠️ Warning: Key starts with '{t[:6]}...'. Google AI Studio keys must start with 'AIzaSy'.")
+        elif not (t.startswith("AIza") or t.startswith("AQ.")):
+            self.lbl_gemini_hint.setText(f"⚠️ Warning: Key starts with '{t[:6]}...'. Google Gemini keys must start with 'AIzaSy' or 'AQ.'.")
             self.lbl_gemini_hint.setStyleSheet("font-size: 11px; color: #ECC94B; font-weight: 700; margin-top: -4px;")
         else:
-            self.lbl_gemini_hint.setText("✅ Valid Google Gemini key format (AIzaSy...)")
+            self.lbl_gemini_hint.setText("✅ Valid Google Gemini key format")
             self.lbl_gemini_hint.setStyleSheet("font-size: 11px; color: #38A169; font-weight: 700; margin-top: -4px;")
+
 
     def _run_live_diagnostics(self):
 

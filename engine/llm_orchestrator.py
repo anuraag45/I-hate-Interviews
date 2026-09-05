@@ -47,8 +47,9 @@ class LLMOrchestrator:
 
         try:
             if provider.lower() == "gemini":
-                if not api_key.startswith("AIza"):
-                    return False, 0.0, f"Invalid key prefix ('{api_key[:6]}...'). Google AI Studio keys must start with 'AIzaSy'."
+                if not (api_key.startswith("AIza") or api_key.startswith("AQ.")):
+                    return False, 0.0, f"Invalid key prefix ('{api_key[:6]}...'). Google keys must start with 'AIzaSy' or 'AQ.'."
+
 
                 async def probe():
                     nonlocal first_token_time
@@ -129,12 +130,13 @@ class LLMOrchestrator:
 
         # Check key format
         if gemini_key:
-            if not gemini_key.startswith("AIza"):
+            is_valid_format = gemini_key.startswith("AIza") or gemini_key.startswith("AQ.")
+            if not is_valid_format:
                 err_text = (
-                    f"• **Invalid Gemini API Key**: The configured key starts with `{gemini_key[:8]}...` instead of `AIzaSy...`.\n"
-                    f"• **Fix**: Google AI Studio keys always start with `AIzaSy`. Please get a free API key at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into the Control Hub.\n\n"
+                    f"• **Invalid Gemini API Key**: The configured key starts with `{gemini_key[:8]}...` instead of `AIzaSy...` or `AQ.`.\n"
+                    f"• **Fix**: Google AI Studio keys start with `AIzaSy`. Please get a free API key at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into the Control Hub.\n\n"
                     f"```python\n"
-                    f"# Required key format: AIzaSy...\n"
+                    f"# Required key format: AIzaSy... or AQ...\n"
                     f"# Currently saved:    {gemini_key[:8]}... (Invalid)\n"
                     f"```"
                 )
@@ -157,7 +159,18 @@ class LLMOrchestrator:
                     err_str = str(e)
                     print(f"[LLM] Gemini stream error: {err_str}")
                     await cb.record_failure()
-                    if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+                    if "denied access" in err_str.lower() or "permission_denied" in err_str.lower() or "403" in err_str:
+                        notice = (
+                            f"> ⚠️ **Google Cloud Project Notice**: Google reported: *Your project has been denied access (403)*.\n"
+                            f"> To enable live Gemini calls, please create a fresh API key in a new project at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey).\n\n"
+                        )
+                        if on_token:
+                            for word in notice.split(" "):
+                                on_token(word + " ")
+                                await asyncio.sleep(0.01)
+                        offline_res = await self._generate_smart_offline_response(user_topic, on_token)
+                        return notice + offline_res
+                    elif "api_key_invalid" in err_str.lower() or "api key not valid" in err_str.lower():
                         err_text = (
                             f"• **Gemini Key Rejected by Google**: Google reported your API key is invalid.\n"
                             f"• **Fix**: Please check [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) to verify your API key and update it in the Control Hub.\n\n"
@@ -170,6 +183,7 @@ class LLMOrchestrator:
                                 on_token(word + " ")
                                 await asyncio.sleep(0.01)
                         return err_text
+
 
         # Smart Topic-Aware Offline Intelligence Engine
         return await self._generate_smart_offline_response(user_topic, on_token)
@@ -598,9 +612,14 @@ def solve_task(items: List[Any]) -> Dict[str, Any]:
                     if "API key not valid" in err_str or "API_KEY_INVALID" in err_str:
                         raise ValueError(f"API_KEY_INVALID: API key not valid. Please pass a valid Google Gemini API key from https://aistudio.google.com/apikey.")
                     raise ValueError(f"HTTP 400: {err_str[:120]}")
+                elif response.status_code == 403:
+                    resp_body = await response.aread()
+                    err_str = resp_body.decode("utf-8", errors="ignore")
+                    raise ValueError(f"PERMISSION_DENIED (403): Your project has been denied access by Google.")
                 elif response.status_code != 200:
                     resp_body = await response.aread()
                     raise ValueError(f"HTTP {response.status_code}: {resp_body.decode('utf-8', errors='ignore')[:120]}")
+
 
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
