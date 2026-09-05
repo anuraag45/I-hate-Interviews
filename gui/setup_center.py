@@ -600,7 +600,7 @@ class SetupCenter(QMainWindow):
 
         self.lbl_diag_results = QLabel("")
         self.lbl_diag_results.setWordWrap(True)
-        self.lbl_diag_results.setStyleSheet("font-family: monospace; font-size: 11px; color: #38A169;")
+        self.lbl_diag_results.setStyleSheet("font-family: monospace; font-size: 11px; line-height: 1.4;")
         dg_layout.addWidget(self.lbl_diag_results)
 
         layout.addWidget(diag_group)
@@ -633,12 +633,19 @@ class SetupCenter(QMainWindow):
                 dg_ok, dg_ttft, dg_msg = await orch.benchmark_provider_ttft("deepgram", timeout=3.5)
 
                 lines = []
-                lines.append(f"• GOOGLE GEMINI ({orch.get_gemini_model_name().upper()}): {'✅' if gem_ok else '❌'} {gem_msg}")
-                if self.txt_deepgram.text().strip():
-                    lines.append(f"• DEEPGRAM NOVA-2:                        {'✅' if dg_ok else '❌'} {dg_msg}")
+                if gem_ok:
+                    lines.append(f'<span style="color:#48BB78;"><b>• GOOGLE GEMINI ({orch.get_gemini_model_name().upper()}):</b> ✅ {gem_msg}</span>')
                 else:
-                    lines.append("• SPEECH ENGINE:                          ✅ Universal Free Engine Active (VAD)")
-                return "\n".join(lines)
+                    lines.append(f'<span style="color:#FC8181;"><b>• GOOGLE GEMINI ({orch.get_gemini_model_name().upper()}):</b> ❌ {gem_msg}</span>')
+
+                if self.txt_deepgram.text().strip():
+                    if dg_ok:
+                        lines.append(f'<span style="color:#48BB78;"><b>• DEEPGRAM NOVA-2:</b> ✅ {dg_msg}</span>')
+                    else:
+                        lines.append(f'<span style="color:#FC8181;"><b>• DEEPGRAM NOVA-2:</b> ❌ {dg_msg}</span>')
+                else:
+                    lines.append('<span style="color:#68D391;"><b>• SPEECH ENGINE:</b> ✅ Universal Free Engine Active (VAD)</span>')
+                return "<br>".join(lines)
 
             res_text = asyncio.run(run_probes())
             self.lbl_diag_results.setText(res_text)

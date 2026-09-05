@@ -78,7 +78,12 @@ class LLMOrchestrator:
         except asyncio.TimeoutError:
             return False, 0.0, f"Timeout (> {timeout}s)"
         except Exception as ex:
-            return False, 0.0, str(ex)
+            err_str = str(ex)
+            if "PERMISSION_DENIED" in err_str or "denied access" in err_str.lower() or "403" in err_str:
+                return False, 0.0, "Google Project Denied Access (403): This Google Cloud project was denied access by Google. Create an API key in a fresh project at aistudio.google.com/apikey."
+            if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+                return False, 0.0, "Invalid API Key: Key rejected by Google. Get a valid key at aistudio.google.com/apikey."
+            return False, 0.0, err_str
 
     async def stream_direct_qa(
         self,
@@ -513,14 +518,18 @@ def solve_task(items: List[Any]) -> Dict[str, Any]:
         temp = float(self.ai_settings.get("temperature", 0.2))
         max_tok = int(self.ai_settings.get("max_tokens", 1200))
 
+        last_error = None
         try:
             res = await self._call_gemini_rest(prompt, api_key, model_name, temp, max_tok, on_token)
             if res and res.strip():
                 return res
         except Exception as e:
+            last_error = e
             err_msg = str(e)
             print(f"[LLM] Gemini REST stream attempt error: {err_msg}")
             if "API_KEY_INVALID" in err_msg or "API key not valid" in err_msg:
+                raise e
+            if "PERMISSION_DENIED" in err_msg or "403" in err_msg or "denied access" in err_msg.lower():
                 raise e
 
         try:
@@ -546,10 +555,16 @@ def solve_task(items: List[Any]) -> Dict[str, Any]:
             if full_text.strip():
                 return full_text
         except Exception as e:
+            last_error = e
             err_msg = str(e)
             print(f"[LLM] google.genai SDK exception: {err_msg}")
             if "API_KEY_INVALID" in err_msg or "API key not valid" in err_msg:
                 raise e
+            if "PERMISSION_DENIED" in err_msg or "403" in err_msg or "denied access" in err_msg.lower():
+                raise e
+
+        if last_error:
+            raise last_error
 
         return ""
 
