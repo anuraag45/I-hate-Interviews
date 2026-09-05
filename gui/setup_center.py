@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import threading
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
 from PyQt6.QtGui import QFont, QPixmap, QImage, QColor
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -40,6 +40,69 @@ PRESENTATION_PRESETS = [
 ]
 
 BRAILLE_WAVE_PATTERNS = ["⣀", "⣄", "⣆", "⣇", "⣧", "⣷", "⣿", "⣾", "⣶", "⣤", "⣀", "⡀"]
+
+
+class BenchmarkWorker(QThread):
+    finished_signal = pyqtSignal(bool, str)
+
+    def __init__(self, orch, has_deepgram: bool):
+        super().__init__()
+        self.orch = orch
+        self.has_deepgram = has_deepgram
+
+    def run(self):
+        async def run_probes():
+            gem_ok, gem_ttft, gem_msg = await self.orch.benchmark_provider_ttft("gemini", timeout=8.0)
+            dg_ok, dg_ttft, dg_msg = await self.orch.benchmark_provider_ttft("deepgram", timeout=5.0)
+
+            lines = []
+            if gem_ok:
+                lines.append(f'<span style="color:#48BB78;"><b>• GOOGLE GEMINI ({self.orch.get_gemini_model_name().upper()}):</b> ✅ {gem_msg}</span>')
+            else:
+                lines.append(f'<span style="color:#FC8181;"><b>• GOOGLE GEMINI ({self.orch.get_gemini_model_name().upper()}):</b> ❌ {gem_msg}</span>')
+
+            if self.has_deepgram:
+                if dg_ok:
+                    lines.append(f'<span style="color:#48BB78;"><b>• DEEPGRAM NOVA-2:</b> ✅ {dg_msg}</span>')
+                else:
+                    lines.append(f'<span style="color:#FC8181;"><b>• DEEPGRAM NOVA-2:</b> ❌ {dg_msg}</span>')
+            else:
+                lines.append('<span style="color:#68D391;"><b>• SPEECH ENGINE:</b> ✅ Universal Free Engine Active (VAD)</span>')
+            return gem_ok, "<br>".join(lines)
+
+        try:
+            gem_ok, res_text = asyncio.run(run_probes())
+            self.finished_signal.emit(gem_ok, res_text)
+        except Exception as e:
+            err_html = f'<span style="color:#FC8181;"><b>• BENCHMARK ERROR:</b> ❌ {str(e)}</span>'
+            self.finished_signal.emit(False, err_html)
+
+
+class PlaygroundWorker(QThread):
+    token_received = pyqtSignal(str)
+    finished_signal = pyqtSignal()
+
+    def __init__(self, orch, query: str):
+        super().__init__()
+        self.orch = orch
+        self.query = query
+
+    def run(self):
+        async def run_probe():
+            from engine.stage_manager import InterviewStage
+            await self.orch.stream_stage_response(
+                stage=InterviewStage.STAGE_1_CLARIFY,
+                interviewer_input=self.query,
+                on_token=lambda tok: self.token_received.emit(tok)
+            )
+
+        try:
+            asyncio.run(run_probe())
+        except Exception as e:
+            self.token_received.emit(f"\n[Error: {str(e)}]")
+        finally:
+            self.finished_signal.emit()
+
 
 class SetupCenter(QMainWindow):
     settings_changed = pyqtSignal(dict)
@@ -444,22 +507,13 @@ class SetupCenter(QMainWindow):
         cfg = self.get_current_settings_dict()
         orch = LLMOrchestrator(cfg)
 
-        def worker():
-            async def run_probe():
-                from engine.stage_manager import InterviewStage
-                def on_tok(tok):
-                    cur = self.lbl_play_results.text()
-                    self.lbl_play_results.setText(cur + tok)
+        self._play_worker = PlaygroundWorker(orch, query)
+        self._play_worker.token_received.connect(self._on_play_token)
+        self._play_worker.start()
 
-                await orch.stream_stage_response(
-                    stage=InterviewStage.STAGE_1_CLARIFY,
-                    interviewer_input=query,
-                    on_token=on_tok
-                )
-
-            asyncio.run(run_probe())
-
-        threading.Thread(target=worker, daemon=True).start()
+    def _on_play_token(self, tok: str):
+        cur = self.lbl_play_results.text()
+        self.lbl_play_results.setText(cur + tok)
 
     def _setup_page_ai(self):
         layout = QVBoxLayout(self.page_ai)
@@ -620,39 +674,21 @@ class SetupCenter(QMainWindow):
 
 
     def _run_live_diagnostics(self):
-
-        self.lbl_diag_status.setText("Probing streaming latency...")
+        self.lbl_diag_status.setText("Probing streaming latency (Gemini & Audio)...")
         self.btn_benchmark.setEnabled(False)
 
         cfg = self.get_current_settings_dict()
         orch = LLMOrchestrator(cfg)
+        has_dg = bool(self.txt_deepgram.text().strip())
 
-        def worker():
-            async def run_probes():
-                gem_ok, gem_ttft, gem_msg = await orch.benchmark_provider_ttft("gemini", timeout=3.5)
-                dg_ok, dg_ttft, dg_msg = await orch.benchmark_provider_ttft("deepgram", timeout=3.5)
+        self._bench_worker = BenchmarkWorker(orch, has_dg)
+        self._bench_worker.finished_signal.connect(self._on_benchmark_finished)
+        self._bench_worker.start()
 
-                lines = []
-                if gem_ok:
-                    lines.append(f'<span style="color:#48BB78;"><b>• GOOGLE GEMINI ({orch.get_gemini_model_name().upper()}):</b> ✅ {gem_msg}</span>')
-                else:
-                    lines.append(f'<span style="color:#FC8181;"><b>• GOOGLE GEMINI ({orch.get_gemini_model_name().upper()}):</b> ❌ {gem_msg}</span>')
-
-                if self.txt_deepgram.text().strip():
-                    if dg_ok:
-                        lines.append(f'<span style="color:#48BB78;"><b>• DEEPGRAM NOVA-2:</b> ✅ {dg_msg}</span>')
-                    else:
-                        lines.append(f'<span style="color:#FC8181;"><b>• DEEPGRAM NOVA-2:</b> ❌ {dg_msg}</span>')
-                else:
-                    lines.append('<span style="color:#68D391;"><b>• SPEECH ENGINE:</b> ✅ Universal Free Engine Active (VAD)</span>')
-                return "<br>".join(lines)
-
-            res_text = asyncio.run(run_probes())
-            self.lbl_diag_results.setText(res_text)
-            self.lbl_diag_status.setText("Diagnostics complete.")
-            self.btn_benchmark.setEnabled(True)
-
-        threading.Thread(target=worker, daemon=True).start()
+    def _on_benchmark_finished(self, gem_ok: bool, res_html: str):
+        self.lbl_diag_results.setText(res_html)
+        self.lbl_diag_status.setText("Diagnostics complete.")
+        self.btn_benchmark.setEnabled(True)
 
 
     def _setup_page_audio(self):
