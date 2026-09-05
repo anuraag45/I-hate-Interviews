@@ -116,7 +116,7 @@ class DeepgramStreamer:
         """
         import speech_recognition as sr
         recognizer = sr.Recognizer()
-        recognizer.energy_threshold = 300
+        recognizer.energy_threshold = 180
         recognizer.dynamic_energy_threshold = True
 
         print("[SpeechSTT] Universal Live Speech Engine Active (Listening to mic & system audio)...")
@@ -129,28 +129,28 @@ class DeepgramStreamer:
                 await asyncio.sleep(0.1)
                 continue
 
-            chunk = self._shm_ring.read_available_pcm(max_bytes=6400) # 200ms
+            chunk = self._shm_ring.read_available_pcm(max_bytes=3200) # 100ms
             if not chunk:
-                await asyncio.sleep(0.04)
+                await asyncio.sleep(0.02)
                 continue
 
             # Calculate RMS energy
             samples = np.frombuffer(chunk, dtype=np.int16)
             rms = np.sqrt(np.mean(samples.astype(np.float32) ** 2)) if len(samples) > 0 else 0
 
-            # VAD threshold
-            if rms > 250:
+            # VAD threshold: speech typically > 160 RMS
+            if rms > 160:
                 audio_buffer.extend(chunk)
                 speech_detected = True
                 silence_start = None
                 if self.on_interim and len(audio_buffer) % 16000 == 0:
-                    self.on_interim(">> Listening to speech...")
+                    self.on_interim("🎙️ Hearing speech...")
             elif speech_detected:
                 audio_buffer.extend(chunk)
                 if silence_start is None:
                     silence_start = time.time()
-                elif time.time() - silence_start > 0.8: # 800ms silence ends utterance
-                    if len(audio_buffer) >= 16000: # at least 0.5s audio
+                elif time.time() - silence_start > 0.7: # 700ms silence ends utterance
+                    if len(audio_buffer) >= 12000: # at least ~0.4s audio
                         pcm_bytes = bytes(audio_buffer)
                         audio_buffer.clear()
                         speech_detected = False
@@ -171,18 +171,23 @@ class DeepgramStreamer:
                             except Exception as ex:
                                 print(f"[SpeechSTT] Recognition notice: {ex}")
 
-                        asyncio.get_event_loop().run_in_executor(None, transcribe_worker, pcm_bytes)
+                        try:
+                            loop = asyncio.get_running_loop()
+                            loop.run_in_executor(None, transcribe_worker, pcm_bytes)
+                        except Exception:
+                            import threading
+                            threading.Thread(target=transcribe_worker, args=(pcm_bytes,), daemon=True).start()
                     else:
                         audio_buffer.clear()
                         speech_detected = False
                         silence_start = None
             else:
                 # Keep small circular buffer for pre-speech window
-                if len(audio_buffer) > 6400:
-                    audio_buffer = audio_buffer[-6400:]
+                if len(audio_buffer) > 4800:
+                    audio_buffer = audio_buffer[-4800:]
                 audio_buffer.extend(chunk)
 
-            await asyncio.sleep(0.03)
+            await asyncio.sleep(0.015)
 
     def _check_auto_question(self, text: str):
         """Detects if finalized speech is a question / topic to automatically trigger solution."""

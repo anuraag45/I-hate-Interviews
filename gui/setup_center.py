@@ -968,15 +968,16 @@ class SetupCenter(QMainWindow):
                 return
 
         try:
-            sys_dbfs, _ = self.shm_ring.get_vu_levels()
-            normalized = max(0.0, min(100.0, (sys_dbfs + 60.0) / 60.0 * 100.0))
+            sys_dbfs, mic_dbfs = self.shm_ring.get_vu_levels()
+            active_dbfs = max(sys_dbfs, mic_dbfs)
+            normalized = max(0.0, min(100.0, (active_dbfs + 60.0) / 60.0 * 100.0))
 
             cur_mode = self.combo_vu_mode.currentText().lower()
             if cur_mode == "dots":
                 total_dots = 16
                 active_dots = int((normalized / 100.0) * total_dots)
                 dot_str = ("• " * active_dots) + ("◦ " * (total_dots - active_dots))
-                color = "#E53E3E" if sys_dbfs > -6.0 else "#38A169"
+                color = "#E53E3E" if active_dbfs > -6.0 else ("#ECC94B" if active_dbfs > -18.0 else "#38A169")
                 self.lbl_vu_header.setText(dot_str.strip())
                 self.lbl_vu_header.setStyleSheet(f"font-size: 11px; color: {color}; font-weight: 700;")
             elif cur_mode == "wave":

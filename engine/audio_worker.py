@@ -130,56 +130,65 @@ def run_audio_worker(stop_event: multiprocessing.Event, config: dict):
             while not stop_event.is_set():
                 sys_dbfs = -60.0
                 mic_dbfs = -60.0
-                mixed_audio = None
+                loop_np = None
+                mic_np = None
 
-                # 1. Read Loopback (System)
+                # 1. Read Loopback (System / Interviewer) - non-blocking
                 if stream_loopback:
                     try:
-                        raw_loop = stream_loopback.read(loop_chunk, exception_on_overflow=False)
-                        if raw_loop:
-                            loop_np = np.frombuffer(raw_loop, dtype=np.float32)
-                            if loop_channels > 1:
-                                loop_np = loop_np.reshape(-1, loop_channels).mean(axis=1)
-                            sys_dbfs = calculate_dbfs(loop_np)
-                            if loop_rate != TARGET_SAMPLE_RATE:
-                                gcd = math.gcd(TARGET_SAMPLE_RATE, loop_rate)
-                                loop_np = signal.resample_poly(loop_np, TARGET_SAMPLE_RATE // gcd, loop_rate // gcd)
-                            mixed_audio = loop_np
+                        avail_loop = stream_loopback.get_read_available()
+                        if avail_loop >= loop_chunk:
+                            raw_loop = stream_loopback.read(loop_chunk, exception_on_overflow=False)
+                            if raw_loop:
+                                l_data = np.frombuffer(raw_loop, dtype=np.float32)
+                                if loop_channels > 1:
+                                    l_data = l_data.reshape(-1, loop_channels).mean(axis=1)
+                                sys_dbfs = calculate_dbfs(l_data)
+                                if loop_rate != TARGET_SAMPLE_RATE:
+                                    gcd = math.gcd(TARGET_SAMPLE_RATE, loop_rate)
+                                    l_data = signal.resample_poly(l_data, TARGET_SAMPLE_RATE // gcd, loop_rate // gcd)
+                                loop_np = l_data
                     except Exception:
                         pass
 
-                # 2. Read Microphone (User)
+                # 2. Read Microphone (User / Candidate) - non-blocking
                 if stream_mic:
                     try:
-                        raw_mic = stream_mic.read(mic_chunk, exception_on_overflow=False)
-                        if raw_mic:
-                            mic_np = np.frombuffer(raw_mic, dtype=np.float32)
-                            if mic_channels > 1:
-                                mic_np = mic_np.reshape(-1, mic_channels).mean(axis=1)
-                            mic_dbfs = calculate_dbfs(mic_np)
-                            if mic_rate != TARGET_SAMPLE_RATE:
-                                gcd = math.gcd(TARGET_SAMPLE_RATE, mic_rate)
-                                mic_np = signal.resample_poly(mic_np, TARGET_SAMPLE_RATE // gcd, mic_rate // gcd)
-                            
-                            if mixed_audio is not None:
-                                # Align lengths and mix with 60/40 balance
-                                min_len = min(len(mixed_audio), len(mic_np))
-                                mixed_audio = (mixed_audio[:min_len] * 0.7) + (mic_np[:min_len] * 0.7)
-                            else:
-                                mixed_audio = mic_np
+                        avail_mic = stream_mic.get_read_available()
+                        if avail_mic >= mic_chunk:
+                            raw_mic = stream_mic.read(mic_chunk, exception_on_overflow=False)
+                            if raw_mic:
+                                m_data = np.frombuffer(raw_mic, dtype=np.float32)
+                                if mic_channels > 1:
+                                    m_data = m_data.reshape(-1, mic_channels).mean(axis=1)
+                                mic_dbfs = calculate_dbfs(m_data)
+                                if mic_rate != TARGET_SAMPLE_RATE:
+                                    gcd = math.gcd(TARGET_SAMPLE_RATE, mic_rate)
+                                    m_data = signal.resample_poly(m_data, TARGET_SAMPLE_RATE // gcd, mic_rate // gcd)
+                                mic_np = m_data
                     except Exception:
                         pass
 
-                # 3. Write mixed 16kHz PCM to shared memory
+                # 3. Combine & Mix (with length matching)
+                mixed_audio = None
+                if loop_np is not None and mic_np is not None:
+                    min_len = min(len(loop_np), len(mic_np))
+                    mixed_audio = (loop_np[:min_len] * 0.7) + (mic_np[:min_len] * 0.7)
+                elif mic_np is not None:
+                    mixed_audio = mic_np
+                elif loop_np is not None:
+                    mixed_audio = loop_np
+
+                # 4. Write mixed 16kHz PCM to shared memory
                 if mixed_audio is not None and len(mixed_audio) > 0:
                     pcm_16 = np.clip(mixed_audio * 32767.0, -32768, 32767).astype(np.int16)
                     shm_ring.write_pcm_chunk(pcm_16.tobytes(), system_dbfs=sys_dbfs, mic_dbfs=mic_dbfs)
                     last_audio_time = time.time()
                 else:
-                    if time.time() - last_audio_time > 1.0:
+                    if time.time() - last_audio_time > 0.5:
                         shm_ring.write_pcm_chunk(silence_50ms, system_dbfs=-60.0, mic_dbfs=-60.0)
                         last_audio_time = time.time()
-                    time.sleep(0.01)
+                    time.sleep(0.005)
 
         except Exception as e:
             print(f"[AudioWorker] Audio stream glitch: {e}. Reconnecting in 1.5s...")

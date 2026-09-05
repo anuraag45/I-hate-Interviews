@@ -16,6 +16,7 @@ from stealth.win32_affinity import (
     set_click_through
 )
 from gui.markdown_renderer import render_markdown_to_qt_html
+from engine.shared_audio_ring import SharedAudioRing, SHM_NAME
 
 class ClickFocusLineEdit(QLineEdit):
     """
@@ -343,11 +344,13 @@ class StealthHUD(QWidget):
         self.raw_content_ans = ""
         self.raw_content_code = ""
         self.full_stream_buffer = ""
+        self.shm_ring = None
 
         self._init_window_flags()
         self._init_ui()
         self._connect_signals()
         self.apply_live_settings(self.config)
+        self._init_vu_timer()
 
 
     def _init_window_flags(self):
@@ -814,6 +817,43 @@ class StealthHUD(QWidget):
         self.txt_ans.setText("")
         self.txt_code.setText("")
         self._refresh_rendered_cards()
+
+    def _init_vu_timer(self):
+        self.vu_timer = QTimer(self)
+        self.vu_timer.timeout.connect(self._update_live_vu)
+        self.vu_timer.start(40)
+
+    def _update_live_vu(self):
+        if self.shm_ring is None:
+            try:
+                self.shm_ring = SharedAudioRing(name=SHM_NAME, create=False)
+            except Exception:
+                return
+
+        try:
+            sys_dbfs, mic_dbfs = self.shm_ring.get_vu_levels()
+            active_dbfs = max(sys_dbfs, mic_dbfs)
+            normalized = max(0.0, min(100.0, (active_dbfs + 60.0) / 60.0 * 100.0))
+
+            cur_mode = self.vu_mode.lower() if hasattr(self, 'vu_mode') else "dots"
+            if cur_mode == "dots":
+                total_dots = 16
+                active_dots = int((normalized / 100.0) * total_dots)
+                dot_str = ("• " * active_dots) + ("◦ " * (total_dots - active_dots))
+                color = "#E53E3E" if active_dbfs > -6.0 else ("#ECC94B" if active_dbfs > -18.0 else "#38A169")
+                self.lbl_vu_dots.setText(dot_str.strip())
+                self.lbl_vu_dots.setStyleSheet(f"color: {color}; font-size: 11px; font-weight: 700; font-family: monospace;")
+            elif cur_mode == "wave":
+                self.wave_phase = (self.wave_phase + 1) % len(BRAILLE_WAVE_PATTERNS)
+                num_bars = 16
+                height_factor = max(1, int((normalized / 100.0) * 8))
+                wave_str = "".join([BRAILLE_WAVE_PATTERNS[(self.wave_phase + i * height_factor) % len(BRAILLE_WAVE_PATTERNS)] for i in range(num_bars)])
+                self.lbl_vu_dots.setText(f"[ {wave_str} ]")
+                self.lbl_vu_dots.setStyleSheet("color: #F6D860; font-size: 11px; font-weight: 700; font-family: monospace;")
+            else:
+                self.lbl_vu_dots.setText(f"{active_dbfs:.1f} dBFS ({int(normalized)}%)")
+        except Exception:
+            pass
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
