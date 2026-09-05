@@ -21,7 +21,6 @@ class LLMOrchestrator:
     def __init__(self, config: dict):
         self.config = config or {}
         self.api_keys = self.config.get("api_keys", {})
-        self.preferred_llm = self.config.get("preferred_llm", "gemini").lower()
         self.ai_settings = self.config.get("ai_settings", {})
         self.compact_profile = build_compact_profile(self.config.get("user_profile", {}))
         self.rate_mgr = RateLimitingManager()
@@ -29,7 +28,6 @@ class LLMOrchestrator:
     def update_config(self, new_config: dict):
         self.config = new_config or {}
         self.api_keys = self.config.get("api_keys", {})
-        self.preferred_llm = self.config.get("preferred_llm", "gemini").lower()
         self.ai_settings = self.config.get("ai_settings", {})
         self.compact_profile = build_compact_profile(self.config.get("user_profile", {}))
 
@@ -38,18 +36,6 @@ class LLMOrchestrator:
         if custom and "gemini" in custom.lower():
             return custom
         return self.ai_settings.get("gemini_model", "gemini-3.7-flash")
-
-    def get_groq_model_name(self) -> str:
-        custom = self.ai_settings.get("custom_model", "").strip()
-        if custom and ("llama" in custom.lower() or "groq" in custom.lower()):
-            return custom
-        return self.ai_settings.get("groq_model", "llama-3.3-70b-versatile")
-
-    def get_openai_model_name(self) -> str:
-        custom = self.ai_settings.get("custom_model", "").strip()
-        if custom and "gpt" in custom.lower():
-            return custom
-        return self.ai_settings.get("openai_model", "gpt-4o")
 
     async def benchmark_provider_ttft(self, provider: str, timeout: float = 3.5) -> Tuple[bool, float, str]:
         api_key = self.api_keys.get(provider.lower(), "")
@@ -68,17 +54,6 @@ class LLMOrchestrator:
                         if first_token_time is None:
                             first_token_time = time.time()
                     await self._call_gemini_streaming("ping", api_key, on_token=on_tok)
-
-                await asyncio.wait_for(probe(), timeout=timeout)
-
-            elif provider.lower() == "groq":
-                async def probe():
-                    nonlocal first_token_time
-                    def on_tok(t):
-                        nonlocal first_token_time
-                        if first_token_time is None:
-                            first_token_time = time.time()
-                    await self._call_groq_streaming("ping", api_key, on_token=on_tok)
 
                 await asyncio.wait_for(probe(), timeout=timeout)
 
@@ -107,7 +82,7 @@ class LLMOrchestrator:
         language: str = "Python",
         on_token: Optional[Callable[[str], None]] = None
     ) -> str:
-        """Streams a direct, concise technical answer with production-grade code snippet."""
+        """Streams a direct, concise technical answer with production-grade code snippet using Gemini."""
         prefix = self.ai_settings.get("custom_prompt_prefix", "")
         rules = (prefix + "\n" + SYSTEM_QA_RULES) if prefix else SYSTEM_QA_RULES
 
@@ -126,7 +101,7 @@ class LLMOrchestrator:
         language: str = "Python",
         on_token: Optional[Callable[[str], None]] = None
     ) -> str:
-        """Backward-compatible stage streaming mapped to direct high-accuracy QA."""
+        """Stage streaming mapped to direct high-accuracy QA."""
         return await self.stream_direct_qa(interviewer_input, language=language, on_token=on_token)
 
     async def stream_vision_solution(
@@ -148,25 +123,8 @@ class LLMOrchestrator:
         on_token: Optional[Callable[[str], None]] = None
     ) -> str:
         gemini_key = self.api_keys.get("gemini", "")
-        groq_key = self.api_keys.get("groq", "")
-        openai_key = self.api_keys.get("openai", "")
 
-        # Try Groq if preferred
-        if self.preferred_llm == "groq" and groq_key:
-            cb = self.rate_mgr.get_circuit_breaker("groq")
-            rl = self.rate_mgr.get_rate_limiter("groq")
-            if await cb.can_execute() and await rl.acquire():
-                try:
-                    res = await self._call_groq_streaming(prompt, groq_key, on_token)
-                    if res and res.strip():
-                        await cb.record_success()
-                        self.rate_mgr.record_token_usage(len(prompt) // 4, len(res) // 4)
-                        return res
-                except Exception as e:
-                    print(f"[LLM] Groq error: {e}")
-                    await cb.record_failure()
-
-        # Try Gemini (Latest 3.7 / 3.6 / 2.5)
+        # Google Gemini (Latest 3.8 / 3.7 / 3.6 / 2.5)
         if gemini_key:
             cb = self.rate_mgr.get_circuit_breaker("gemini")
             rl = self.rate_mgr.get_rate_limiter("gemini")
@@ -179,21 +137,6 @@ class LLMOrchestrator:
                         return res
                 except Exception as e:
                     print(f"[LLM] Gemini stream error: {e}")
-                    await cb.record_failure()
-
-        # Try OpenAI Fallback
-        if openai_key:
-            cb = self.rate_mgr.get_circuit_breaker("openai")
-            rl = self.rate_mgr.get_rate_limiter("openai")
-            if await cb.can_execute() and await rl.acquire():
-                try:
-                    res = await self._call_openai_streaming(prompt, openai_key, on_token)
-                    if res and res.strip():
-                        await cb.record_success()
-                        self.rate_mgr.record_token_usage(len(prompt) // 4, len(res) // 4)
-                        return res
-                except Exception as e:
-                    print(f"[LLM] OpenAI error: {e}")
                     await cb.record_failure()
 
         # Smart Topic-Aware Offline Intelligence Engine
@@ -492,82 +435,6 @@ def solve_task(items: List[Any]) -> Dict[str, Any]:
             if on_token:
                 on_token(msg)
             return msg
-
-    async def _call_groq_streaming(self, prompt: str, api_key: str, on_token: Optional[Callable[[str], None]]) -> str:
-        import httpx
-        model_name = self.get_groq_model_name()
-        temp = float(self.ai_settings.get("temperature", 0.2))
-        max_tok = int(self.ai_settings.get("max_tokens", 1000))
-
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": temp,
-            "max_tokens": max_tok,
-            "stream": True
-        }
-        full_text = ""
-        limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
-        async with httpx.AsyncClient(timeout=20.0, limits=limits) as client:
-            async with client.stream("POST", url, headers=headers, json=payload) as response:
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data_str = line[6:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(data_str)
-                            delta = data["choices"][0]["delta"].get("content", "")
-                            if delta:
-                                full_text += delta
-                                if on_token:
-                                    on_token(delta)
-                        except Exception:
-                            pass
-        return full_text
-
-    async def _call_openai_streaming(self, prompt: str, api_key: str, on_token: Optional[Callable[[str], None]]) -> str:
-        import httpx
-        model_name = self.get_openai_model_name()
-        temp = float(self.ai_settings.get("temperature", 0.2))
-        max_tok = int(self.ai_settings.get("max_tokens", 1000))
-
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": temp,
-            "max_tokens": max_tok,
-            "stream": True
-        }
-        full_text = ""
-        limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
-        async with httpx.AsyncClient(timeout=20.0, limits=limits) as client:
-            async with client.stream("POST", url, headers=headers, json=payload) as response:
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data_str = line[6:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(data_str)
-                            delta = data["choices"][0]["delta"].get("content", "")
-                            if delta:
-                                full_text += delta
-                                if on_token:
-                                    on_token(delta)
-                        except Exception:
-                            pass
-        return full_text
 
     async def _call_gemini_rest(self, prompt: str, api_key: str, model_name: str, temp: float, max_tok: int, on_token: Optional[Callable[[str], None]]) -> str:
         import httpx

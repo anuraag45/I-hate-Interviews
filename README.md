@@ -25,7 +25,7 @@
    - Listens to **both** your microphone and the interviewer's voice over Zoom/Teams/Meet in real time.
    - Free built-in speech recognition with automatic Voice Activity Detection (VAD) — when they ask a question, the solution drops automatically without you touching a single key.
 5. **Locked-Down Bank-Grade Security (Windows DPAPI)**:
-   - Your API keys (Gemini 3.7/3.6, Groq, Deepgram, OpenAI) are encrypted at rest using Windows DPAPI, cryptographically tied strictly to your user profile.
+   - Your Google Gemini API keys are encrypted at rest using Windows DPAPI, cryptographically tied strictly to your user profile.
 6. **Mobile Teleprompter Companion**:
    - Scan the QR code with your phone, prop it right below your webcam, and maintain 100% natural eye contact with zero eye wandering.
 7. **Zero Shortcut Clashes**:
@@ -46,8 +46,9 @@ python run.py
 ```
 
 ### 3. Set Your Keys & Roll
-- Drop in your **Google Gemini API Key** (Gemini 3.7 / 3.6 / 2.5 Flash) or **Groq / Deepgram / OpenAI** key in the Control Hub.
+- Drop in your **Google Gemini API Key** (Gemini 3.8 / 3.7 / 3.6 / 2.5 series) in the Control Hub.
 - Hit **🚀 Launch Presenter HUD** and you're good to go.
+
 
 ---
 

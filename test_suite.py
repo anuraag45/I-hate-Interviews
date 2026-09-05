@@ -165,14 +165,16 @@ def test_live_sync_and_theming():
     assert emitted[-1]["ui_settings"]["width"] == 480
     center.combo_theme.setCurrentIndex(1)
     assert emitted[-1]["ui_settings"]["theme"] == "gentle_sage"
-    center.combo_gemini_model.setCurrentIndex(2)
+    center.combo_gemini_model.setCurrentIndex(3)
     assert emitted[-1]["ai_settings"]["gemini_model"] == "gemini-2.5-flash"
-    center.txt_custom_model.setText("gemini-3.7-preview")
-    assert emitted[-1]["ai_settings"]["custom_model"] == "gemini-3.7-preview"
+    center.txt_custom_model.setText("gemini-3.8-preview")
+    assert emitted[-1]["ai_settings"]["custom_model"] == "gemini-3.8-preview"
+
 
     hud = StealthHUD(emitted[-1])
     assert hud.width() == 480
-    assert "GEMINI-3.7-PREVIEW" in hud.lbl_model_badge.text()
+    assert "GEMINI-3.8-PREVIEW" in hud.lbl_model_badge.text()
+
 
     print("  -> 4-PALETTE THEMING COMPILER, 29-INPUT BROADCASTS & HUD DYNAMIC SYNC VERIFIED")
 

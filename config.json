@@ -1,15 +1,11 @@
 {
   "api_keys": {
-    "gemini": "",
-    "groq": "",
-    "openai": "",
+    "gemini": "dpapi:AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAAI6AEXeqdAEe7ntO5hMAbMAAAAAAyAAAATQBlAGUAdABpAG4AZwBDAG8AcABpAGwAbwB0AEMAcgBlAGQAZQBuAHQAaQBhAGwAAAAQZgAAAAEAACAAAAAc1ni5bsEP63olu5tz3D965PWgt83jEhnnmHHMvEPCFwAAAAAOgAAAAAIAACAAAABUYAxgJI6mWBEmAzcKQnLvn+c8iHt+yG0bEZYpKW5e20AAAACU79dGOIYy7OKBezlJiqlYgEqNWGd4Ik87UWcLCLKOjyrcjBxNuWLwYOJ5eIvPacssoiq9LVHUpnKI9yZgTFmTQAAAAIJ19qGxkMWgkgHiN6KbrLuVMuCMDaOMFgBxofU4WqDAvs8XsoT7qcWFruTxaqHm7yBpgNI6lbrLHXI401TEFxk=",
     "deepgram": ""
   },
   "preferred_llm": "gemini",
   "ai_settings": {
     "gemini_model": "gemini-3.7-flash",
-    "groq_model": "llama-3.3-70b-versatile",
-    "openai_model": "gpt-4o",
     "custom_model": "",
     "temperature": 0.2,
     "max_tokens": 1200,
@@ -40,13 +36,10 @@
     "silence_timeout_sec": 1.5
   },
   "hotkeys": {
-    "smart_next": "Ctrl+Space",
-    "stage_1": "Ctrl+1",
-    "stage_2": "Ctrl+2",
-    "stage_3": "Ctrl+3",
+    "smart_next": "Ctrl+Alt+Q",
     "vision_snip": "Ctrl+Alt+S",
-    "hud_toggle": "Alt+H",
-    "ghost_toggle": "Alt+T",
+    "hud_toggle": "Ctrl+Alt+H",
+    "ghost_toggle": "Ctrl+Alt+T",
     "clear_content": "Ctrl+Alt+C"
   },
   "server_settings": {

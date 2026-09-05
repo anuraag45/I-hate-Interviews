@@ -21,13 +21,14 @@ from engine.llm_orchestrator import LLMOrchestrator
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
 
 GEMINI_MODELS = [
+    "gemini-3.8-flash",
     "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash"
+    "gemini-2.5-pro"
 ]
+
 
 PRESENTATION_PRESETS = [
     "Technical Architecture Review & System Design",
@@ -64,7 +65,7 @@ class SetupCenter(QMainWindow):
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                     cfg = json.load(f)
                     keys = cfg.get("api_keys", {})
-                    for k in ["gemini", "groq", "openai", "deepgram"]:
+                    for k in ["gemini", "deepgram"]:
                         if k in keys:
                             keys[k] = dpapi_decrypt_string(keys[k])
                     cfg["api_keys"] = keys
@@ -75,22 +76,16 @@ class SetupCenter(QMainWindow):
 
     def get_current_settings_dict(self) -> dict:
         gemini_raw = self.txt_gemini.text().strip()
-        groq_raw = self.txt_groq.text().strip()
-        openai_raw = self.txt_openai.text().strip()
         deepgram_raw = self.txt_deepgram.text().strip()
 
         cfg = dict(self.config)
         cfg["api_keys"] = {
             "gemini": gemini_raw,
-            "groq": groq_raw,
-            "openai": openai_raw,
             "deepgram": deepgram_raw
         }
-        cfg["preferred_llm"] = self.combo_llm.currentText().lower()
+        cfg["preferred_llm"] = "gemini"
         cfg["ai_settings"] = {
             "gemini_model": self.combo_gemini_model.currentText(),
-            "groq_model": self.txt_groq_model.text().strip() or "llama-3.3-70b-versatile",
-            "openai_model": self.txt_openai_model.text().strip() or "gpt-4o",
             "custom_model": self.txt_custom_model.text().strip(),
             "temperature": float(self.spin_temp.value()),
             "max_tokens": int(self.spin_tokens.value()),
@@ -127,8 +122,6 @@ class SetupCenter(QMainWindow):
         cfg_to_save = dict(cfg)
         cfg_to_save["api_keys"] = {
             "gemini": dpapi_encrypt_string(cfg["api_keys"]["gemini"]),
-            "groq": dpapi_encrypt_string(cfg["api_keys"]["groq"]),
-            "openai": dpapi_encrypt_string(cfg["api_keys"]["openai"]),
             "deepgram": dpapi_encrypt_string(cfg["api_keys"]["deepgram"])
         }
         self.config = cfg
@@ -155,10 +148,7 @@ class SetupCenter(QMainWindow):
         self.chk_click_through.toggled.connect(self._emit_live_change)
 
         self.combo_gemini_model.currentIndexChanged.connect(self._emit_live_change)
-        self.combo_llm.currentIndexChanged.connect(self._emit_live_change)
         self.txt_custom_model.textChanged.connect(self._emit_live_change)
-        self.txt_groq_model.textChanged.connect(self._emit_live_change)
-        self.txt_openai_model.textChanged.connect(self._emit_live_change)
         self.spin_temp.valueChanged.connect(self._emit_live_change)
         self.spin_tokens.valueChanged.connect(self._emit_live_change)
         self.txt_prompt_prefix.textChanged.connect(self._emit_live_change)
@@ -175,9 +165,8 @@ class SetupCenter(QMainWindow):
         self.txt_jd.textChanged.connect(self._emit_live_change)
 
         self.txt_gemini.textChanged.connect(self._emit_live_change)
-        self.txt_groq.textChanged.connect(self._emit_live_change)
         self.txt_deepgram.textChanged.connect(self._emit_live_change)
-        self.txt_openai.textChanged.connect(self._emit_live_change)
+
 
     def _emit_live_change(self):
         cfg = self.get_current_settings_dict()
@@ -474,117 +463,127 @@ class SetupCenter(QMainWindow):
 
     def _setup_page_ai(self):
         layout = QVBoxLayout(self.page_ai)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(10)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(14)
 
-        cred_group = QGroupBox("🔑 API Credentials (DPAPI Encrypted at Rest)", self.page_ai)
+        # 1. API Credentials Group
+        cred_group = QGroupBox("🔑 Google Gemini Credentials (DPAPI Encrypted at Rest)", self.page_ai)
         cg_layout = QVBoxLayout(cred_group)
-        cg_layout.setSpacing(6)
+        cg_layout.setContentsMargins(14, 18, 14, 14)
+        cg_layout.setSpacing(10)
 
-        cg_layout.addWidget(QLabel("Google Gemini API Key (Gemini 3.7 / 3.6 / 2.5 Series):"))
+        lbl_g = QLabel("Google Gemini API Key (Gemini 3.8 / 3.7 / 3.6 / 2.5 Series):")
+        lbl_g.setStyleSheet("font-weight: 600; color: #F0F2F7; font-size: 12px;")
+        cg_layout.addWidget(lbl_g)
         self.txt_gemini = QLineEdit(self.config.get("api_keys", {}).get("gemini", ""))
         self.txt_gemini.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_gemini.setPlaceholderText("Enter your Google Gemini API key (AIzaSy...)")
+        self.txt_gemini.setFixedHeight(38)
         cg_layout.addWidget(self.txt_gemini)
 
-        cg_layout.addWidget(QLabel("Groq API Key (Ultra-Low Latency Fallback):"))
-        self.txt_groq = QLineEdit(self.config.get("api_keys", {}).get("groq", ""))
-        self.txt_groq.setEchoMode(QLineEdit.EchoMode.Password)
-        cg_layout.addWidget(self.txt_groq)
-
-        cg_layout.addWidget(QLabel("Deepgram Nova-2 API Key (Real-Time Live Meeting STT):"))
+        lbl_dg = QLabel("Deepgram Nova-2 API Key (Optional — Free Speech Recognition with VAD is built-in):")
+        lbl_dg.setStyleSheet("font-weight: 600; color: #8E95A5; font-size: 11px;")
+        cg_layout.addWidget(lbl_dg)
         self.txt_deepgram = QLineEdit(self.config.get("api_keys", {}).get("deepgram", ""))
         self.txt_deepgram.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_deepgram.setPlaceholderText("Leave empty to use the built-in free speech recognition engine")
+        self.txt_deepgram.setFixedHeight(38)
         cg_layout.addWidget(self.txt_deepgram)
-
-        cg_layout.addWidget(QLabel("OpenAI API Key (Optional Alternative):"))
-        self.txt_openai = QLineEdit(self.config.get("api_keys", {}).get("openai", ""))
-        self.txt_openai.setEchoMode(QLineEdit.EchoMode.Password)
-        cg_layout.addWidget(self.txt_openai)
 
         layout.addWidget(cred_group)
 
-        model_group = QGroupBox("🧠 Model Selection & Hyperparameters", self.page_ai)
+        # 2. Model Selection & Hyperparameters
+        model_group = QGroupBox("🧠 Google Gemini Model & Generation Settings", self.page_ai)
         mg_layout = QVBoxLayout(model_group)
-        mg_layout.setSpacing(6)
+        mg_layout.setContentsMargins(14, 18, 14, 14)
+        mg_layout.setSpacing(12)
 
+        # Row 1: Gemini Model Selector & Custom Override
         m_row = QHBoxLayout()
+        m_row.setSpacing(14)
+
         v_m1 = QVBoxLayout()
-        v_m1.addWidget(QLabel("Gemini Model:"))
+        v_m1.setSpacing(6)
+        lbl_m1 = QLabel("Active Gemini Model:")
+        lbl_m1.setStyleSheet("font-weight: 600; color: #F0F2F7; font-size: 12px;")
+        v_m1.addWidget(lbl_m1)
         self.combo_gemini_model = QComboBox()
         self.combo_gemini_model.addItems(GEMINI_MODELS)
+        self.combo_gemini_model.setFixedHeight(38)
         cur_m = self.config.get("ai_settings", {}).get("gemini_model", "gemini-3.7-flash")
         m_idx = self.combo_gemini_model.findText(cur_m)
         if m_idx >= 0:
             self.combo_gemini_model.setCurrentIndex(m_idx)
         v_m1.addWidget(self.combo_gemini_model)
-        m_row.addLayout(v_m1)
+        m_row.addLayout(v_m1, 1)
 
         v_m2 = QVBoxLayout()
-        v_m2.addWidget(QLabel("Primary Provider:"))
-        self.combo_llm = QComboBox()
-        self.combo_llm.addItems(["Gemini", "Groq", "OpenAI"])
-        pref = self.config.get("preferred_llm", "gemini").capitalize()
-        p_idx = self.combo_llm.findText(pref)
-        if p_idx >= 0:
-            self.combo_llm.setCurrentIndex(p_idx)
-        v_m2.addWidget(self.combo_llm)
-        m_row.addLayout(v_m2)
+        v_m2.setSpacing(6)
+        lbl_m2 = QLabel("Custom Model Override (Optional):")
+        lbl_m2.setStyleSheet("font-weight: 600; color: #8E95A5; font-size: 12px;")
+        v_m2.addWidget(lbl_m2)
+        self.txt_custom_model = QLineEdit(self.config.get("ai_settings", {}).get("custom_model", ""))
+        self.txt_custom_model.setPlaceholderText("e.g. gemini-3.8-flash or custom endpoint")
+        self.txt_custom_model.setFixedHeight(38)
+        v_m2.addWidget(self.txt_custom_model)
+        m_row.addLayout(v_m2, 1)
         mg_layout.addLayout(m_row)
 
-        c_row = QHBoxLayout()
-        c_row.addWidget(QLabel("Custom Model Override (Optional):"))
-        self.txt_custom_model = QLineEdit(self.config.get("ai_settings", {}).get("custom_model", ""))
-        self.txt_custom_model.setPlaceholderText("e.g. gemini-3.7-flash or custom model endpoint")
-        c_row.addWidget(self.txt_custom_model, 1)
-        mg_layout.addLayout(c_row)
-
-        fb_row = QHBoxLayout()
-        v_groq_m = QVBoxLayout()
-        v_groq_m.addWidget(QLabel("Groq Model:"))
-        self.txt_groq_model = QLineEdit(self.config.get("ai_settings", {}).get("groq_model", "llama-3.3-70b-versatile"))
-        v_groq_m.addWidget(self.txt_groq_model)
-        fb_row.addLayout(v_groq_m)
-
-        v_oai_m = QVBoxLayout()
-        v_oai_m.addWidget(QLabel("OpenAI Model:"))
-        self.txt_openai_model = QLineEdit(self.config.get("ai_settings", {}).get("openai_model", "gpt-4o"))
-        v_oai_m.addWidget(self.txt_openai_model)
-        fb_row.addLayout(v_oai_m)
-        mg_layout.addLayout(fb_row)
-
+        # Row 2: Temperature and Max Tokens
         t_row = QHBoxLayout()
+        t_row.setSpacing(14)
+
         v_t1 = QVBoxLayout()
-        v_t1.addWidget(QLabel("Temperature (0.0 = Precise, 0.7 = Creative):"))
+        v_t1.setSpacing(6)
+        lbl_t1 = QLabel("Temperature (0.0 = Precise / Code, 0.7 = Creative):")
+        lbl_t1.setStyleSheet("font-weight: 600; color: #F0F2F7; font-size: 12px;")
+        v_t1.addWidget(lbl_t1)
         self.spin_temp = QDoubleSpinBox()
         self.spin_temp.setRange(0.0, 1.0)
         self.spin_temp.setSingleStep(0.05)
+        self.spin_temp.setFixedHeight(38)
         self.spin_temp.setValue(float(self.config.get("ai_settings", {}).get("temperature", 0.2)))
         v_t1.addWidget(self.spin_temp)
-        t_row.addLayout(v_t1)
+        t_row.addLayout(v_t1, 1)
 
         v_t2 = QVBoxLayout()
-        v_t2.addWidget(QLabel("Max Output Tokens:"))
+        v_t2.setSpacing(6)
+        lbl_t2 = QLabel("Max Output Tokens:")
+        lbl_t2.setStyleSheet("font-weight: 600; color: #F0F2F7; font-size: 12px;")
+        v_t2.addWidget(lbl_t2)
         self.spin_tokens = QSpinBox()
         self.spin_tokens.setRange(256, 4096)
         self.spin_tokens.setSingleStep(128)
+        self.spin_tokens.setFixedHeight(38)
         self.spin_tokens.setValue(int(self.config.get("ai_settings", {}).get("max_tokens", 1200)))
         v_t2.addWidget(self.spin_tokens)
-        t_row.addLayout(v_t2)
+        t_row.addLayout(v_t2, 1)
         mg_layout.addLayout(t_row)
 
-        mg_layout.addWidget(QLabel("Custom Persona Prompt Prefix (Optional):"))
+        # Row 3: Custom Persona Prompt Prefix
+        v_p = QVBoxLayout()
+        v_p.setSpacing(6)
+        lbl_p = QLabel("Custom Persona Prompt Prefix (Optional):")
+        lbl_p.setStyleSheet("font-weight: 600; color: #8E95A5; font-size: 12px;")
+        v_p.addWidget(lbl_p)
         self.txt_prompt_prefix = QTextEdit()
-        self.txt_prompt_prefix.setFixedHeight(40)
+        self.txt_prompt_prefix.setFixedHeight(50)
+        self.txt_prompt_prefix.setPlaceholderText("Extra instructions to guide Gemini before every answer...")
         self.txt_prompt_prefix.setPlainText(self.config.get("ai_settings", {}).get("custom_prompt_prefix", ""))
-        mg_layout.addWidget(self.txt_prompt_prefix)
+        v_p.addWidget(self.txt_prompt_prefix)
+        mg_layout.addLayout(v_p)
 
         layout.addWidget(model_group)
 
+        # 3. Latency Diagnostics
         diag_group = QGroupBox("⚡ 1-Click Streaming TTFT Latency Probing", self.page_ai)
         dg_layout = QVBoxLayout(diag_group)
-        
+        dg_layout.setContentsMargins(14, 18, 14, 14)
+        dg_layout.setSpacing(10)
+
         d_top = QHBoxLayout()
-        self.btn_benchmark = QPushButton("⚡ Benchmark Connected APIs")
+        self.btn_benchmark = QPushButton("⚡ Benchmark Gemini API")
+        self.btn_benchmark.setFixedHeight(38)
         self.btn_benchmark.clicked.connect(self._run_live_diagnostics)
         self.lbl_diag_status = QLabel("Ready for streaming probe.")
         self.lbl_diag_status.setStyleSheet("color: #8E95A5; font-size: 11px;")
@@ -610,13 +609,14 @@ class SetupCenter(QMainWindow):
         def worker():
             async def run_probes():
                 gem_ok, gem_ttft, gem_msg = await orch.benchmark_provider_ttft("gemini", timeout=3.5)
-                groq_ok, groq_ttft, groq_msg = await orch.benchmark_provider_ttft("groq", timeout=3.5)
                 dg_ok, dg_ttft, dg_msg = await orch.benchmark_provider_ttft("deepgram", timeout=3.5)
 
                 lines = []
-                lines.append(f"• {orch.get_gemini_model_name().upper()}: {'✅' if gem_ok else '❌'} {gem_msg}")
-                lines.append(f"• {orch.get_groq_model_name().upper()}:   {'✅' if groq_ok else '❌'} {groq_msg}")
-                lines.append(f"• DEEPGRAM NOVA-2:        {'✅' if dg_ok else '❌'} {dg_msg}")
+                lines.append(f"• GOOGLE GEMINI ({orch.get_gemini_model_name().upper()}): {'✅' if gem_ok else '❌'} {gem_msg}")
+                if self.txt_deepgram.text().strip():
+                    lines.append(f"• DEEPGRAM NOVA-2:                        {'✅' if dg_ok else '❌'} {dg_msg}")
+                else:
+                    lines.append("• SPEECH ENGINE:                          ✅ Universal Free Engine Active (VAD)")
                 return "\n".join(lines)
 
             res_text = asyncio.run(run_probes())
@@ -625,6 +625,7 @@ class SetupCenter(QMainWindow):
             self.btn_benchmark.setEnabled(True)
 
         threading.Thread(target=worker, daemon=True).start()
+
 
     def _setup_page_audio(self):
         layout = QVBoxLayout(self.page_audio)

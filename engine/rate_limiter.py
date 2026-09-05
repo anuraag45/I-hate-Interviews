@@ -76,16 +76,13 @@ class RateLimitingManager:
     def __init__(self):
         self.circuit_breakers: Dict[str, ProviderCircuitBreaker] = {
             "gemini": ProviderCircuitBreaker("gemini", failure_threshold=3, recovery_timeout=10.0),
-            "groq": ProviderCircuitBreaker("groq", failure_threshold=3, recovery_timeout=15.0),
-            "openai": ProviderCircuitBreaker("openai", failure_threshold=3, recovery_timeout=20.0),
             "deepgram": ProviderCircuitBreaker("deepgram", failure_threshold=3, recovery_timeout=15.0),
         }
         self.rate_limiters: Dict[str, TokenBucketRateLimiter] = {
             "gemini": TokenBucketRateLimiter(requests_per_minute=60.0, burst_capacity=10.0),
-            "groq": TokenBucketRateLimiter(requests_per_minute=30.0, burst_capacity=5.0),
-            "openai": TokenBucketRateLimiter(requests_per_minute=30.0, burst_capacity=5.0),
             "deepgram": TokenBucketRateLimiter(requests_per_minute=120.0, burst_capacity=20.0),
         }
+
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.total_requests = 0
