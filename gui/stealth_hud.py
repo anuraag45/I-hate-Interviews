@@ -34,6 +34,7 @@ class ClickFocusLineEdit(QLineEdit):
 
 class HUDUpdateSignaler(QObject):
     transcript_updated = pyqtSignal(str)
+    qa_start = pyqtSignal(str)
     qa_token_stream = pyqtSignal(str)
     qa_card_complete = pyqtSignal(str)
     stage_token_stream = pyqtSignal(int, str)
@@ -672,6 +673,7 @@ class StealthHUD(QWidget):
 
     def _connect_signals(self):
         self.signaler.transcript_updated.connect(self.set_transcript_text)
+        self.signaler.qa_start.connect(self.start_qa_display)
         self.signaler.qa_token_stream.connect(self.append_qa_token)
         self.signaler.qa_card_complete.connect(self.set_qa_complete)
         self.signaler.stage_token_stream.connect(lambda s, t: self.append_qa_token(t))
@@ -679,6 +681,16 @@ class StealthHUD(QWidget):
         self.signaler.clear_triggered.connect(self.clear_content)
         self.signaler.toggle_visibility_signal.connect(self.toggle_visibility)
         self.signaler.toggle_click_through_signal.connect(self.toggle_click_through)
+
+    def start_qa_display(self, query: str):
+        self.lbl_transcript.setText(f">> Solving: \"{query}\"")
+        self.lbl_status.setText("⚡ Solving...")
+        self.lbl_status.setStyleSheet("color: #ECC94B; font-size: 10px; font-weight: 700;")
+        self.raw_content_ans = ""
+        self.raw_content_code = ""
+        self.full_stream_buffer = ""
+        self.txt_ans.setText("<div style='color:#ECC94B; font-style:italic;'>⚡ Generating answer via Google Gemini...</div>")
+        self.card_code.hide()
 
     def set_transcript_text(self, text: str):
         if text:

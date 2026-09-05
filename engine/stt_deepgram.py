@@ -40,17 +40,37 @@ class DeepgramStreamer:
     async def start(self):
         """Starts either Deepgram Nova-2 WebSocket or Free Local/Google VAD Speech Recognizer."""
         self._running = True
-        self._shm_ring = SharedAudioRing(name=SHM_NAME, create=False)
+
+        # Wait for audio_worker process to create the shared memory ring buffer
+        for attempt in range(40):
+            try:
+                self._shm_ring = SharedAudioRing(name=SHM_NAME, create=False)
+                print("[SpeechSTT] Successfully attached to shared audio stream buffer.")
+                break
+            except Exception:
+                await asyncio.sleep(0.2)
+
+        if self._shm_ring is None:
+            print("[SpeechSTT] Audio worker delayed; creating independent audio ring buffer.")
+            try:
+                self._shm_ring = SharedAudioRing(name=SHM_NAME, create=True)
+            except Exception as e:
+                print(f"[SpeechSTT] Critical ring buffer error: {e}")
+                return
 
         while self._running:
-            if self.api_key:
-                try:
-                    await self._run_deepgram_loop()
-                except Exception as e:
-                    print(f"[SpeechSTT] Deepgram disconnect: {e}. Falling back to Universal Recognizer...")
+            try:
+                if self.api_key:
+                    try:
+                        await self._run_deepgram_loop()
+                    except Exception as e:
+                        print(f"[SpeechSTT] Deepgram disconnect: {e}. Falling back to Universal Recognizer...")
+                        await self._run_universal_vad_loop()
+                else:
                     await self._run_universal_vad_loop()
-            else:
-                await self._run_universal_vad_loop()
+            except Exception as e:
+                print(f"[SpeechSTT] STT loop error: {e}. Restarting in 1s...")
+                await asyncio.sleep(1.0)
 
     async def _run_deepgram_loop(self):
         headers = {"Authorization": f"Token {self.api_key}"}
@@ -116,47 +136,49 @@ class DeepgramStreamer:
         """
         import speech_recognition as sr
         recognizer = sr.Recognizer()
-        recognizer.energy_threshold = 180
+        recognizer.energy_threshold = 200
         recognizer.dynamic_energy_threshold = True
 
         print("[SpeechSTT] Universal Live Speech Engine Active (Listening to mic & system audio)...")
         audio_buffer = bytearray()
-        silence_start = None
         speech_detected = False
+        silence_frames = 0
+        noise_floor = 90.0
 
         while self._running and not self.api_key:
             if not self._shm_ring:
                 await asyncio.sleep(0.1)
                 continue
 
-            chunk = self._shm_ring.read_available_pcm(max_bytes=3200) # 100ms
+            chunk = self._shm_ring.read_available_pcm(max_bytes=3200) # ~100ms
             if not chunk:
                 await asyncio.sleep(0.02)
                 continue
 
-            # Calculate RMS energy
+            # Calculate RMS energy of 16-bit PCM chunk
             samples = np.frombuffer(chunk, dtype=np.int16)
-            rms = np.sqrt(np.mean(samples.astype(np.float32) ** 2)) if len(samples) > 0 else 0
+            rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2))) if len(samples) > 0 else 0.0
 
-            # VAD threshold: speech typically > 160 RMS
-            if rms > 160:
+            # Adaptive dynamic noise floor tracking (slow moving average of quiet frames)
+            if rms < 300.0:
+                noise_floor = 0.95 * noise_floor + 0.05 * rms
+            speech_thresh = max(180.0, noise_floor * 1.8)
+
+            if rms >= speech_thresh:
                 audio_buffer.extend(chunk)
                 speech_detected = True
-                silence_start = None
-                if self.on_interim and len(audio_buffer) % 16000 == 0:
-                    self.on_interim("🎙️ Hearing speech...")
+                silence_frames = 0
             elif speech_detected:
                 audio_buffer.extend(chunk)
-                if silence_start is None:
-                    silence_start = time.time()
-                elif time.time() - silence_start > 0.7: # 700ms silence ends utterance
-                    if len(audio_buffer) >= 12000: # at least ~0.4s audio
+                silence_frames += 1
+                # 5 consecutive quiet chunks (~500ms pause) or 5 seconds max duration triggers transcription
+                if silence_frames >= 5 or len(audio_buffer) >= 16000 * 2 * 5:
+                    if len(audio_buffer) >= 16000 * 2 * 0.4: # At least ~0.4s audio
                         pcm_bytes = bytes(audio_buffer)
                         audio_buffer.clear()
                         speech_detected = False
-                        silence_start = None
-                        
-                        # Transcribe in worker thread
+                        silence_frames = 0
+
                         def transcribe_worker(raw_pcm):
                             try:
                                 audio_data = sr.AudioData(raw_pcm, 16000, 2)
@@ -180,9 +202,9 @@ class DeepgramStreamer:
                     else:
                         audio_buffer.clear()
                         speech_detected = False
-                        silence_start = None
+                        silence_frames = 0
             else:
-                # Keep small circular buffer for pre-speech window
+                # Keep small pre-speech buffer (~150ms)
                 if len(audio_buffer) > 4800:
                     audio_buffer = audio_buffer[-4800:]
                 audio_buffer.extend(chunk)

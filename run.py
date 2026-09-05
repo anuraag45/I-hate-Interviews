@@ -107,9 +107,6 @@ class MeetingCopilotApp:
             on_final=self._on_stt_final,
             on_auto_question_detected=self._on_live_question_detected
         )
-        if self.async_loop:
-            asyncio.run_coroutine_threadsafe(self.stt_streamer.start(), self.async_loop)
-
         self.audio_process = multiprocessing.Process(
             target=run_audio_worker,
             args=(self.audio_stop_event, self.config),
@@ -117,6 +114,15 @@ class MeetingCopilotApp:
             daemon=True
         )
         self.audio_process.start()
+
+        if self.async_loop:
+            stt_future = asyncio.run_coroutine_threadsafe(self.stt_streamer.start(), self.async_loop)
+            def _on_stt_done(f):
+                try:
+                    f.result()
+                except Exception as ex:
+                    print(f"[MeetingCopilot] STT worker ended with exception: {ex}")
+            stt_future.add_done_callback(_on_stt_done)
 
         self._init_hotkeys()
 
@@ -240,7 +246,7 @@ class MeetingCopilotApp:
         print(f"[MeetingCopilot] Streaming Direct QA for: '{question[:60]}...'")
 
         async def run_qa():
-            self.hud_signaler.qa_card_complete.emit("")
+            self.hud_signaler.qa_start.emit(question)
             threadsafe_broadcast({"type": "qa_start", "query": question})
 
             def on_tok(token: str):
